@@ -642,24 +642,161 @@
             });
         });
 
-        // テキストから図を生成
+        // ================================================================================
+        // 高精度テキスト解析エンジン
+        // ================================================================================
+
+        // 各図タイプのキーワードデータベース（優先度付き）
+        const DIAGRAM_KEYWORDS = {
+            sequence: {
+                primary: ['シーケンス', 'シーケンス図', 'sequence'],
+                secondary: ['やりとり', '問い合わせ', '応答', '返答', 'リクエスト', 'レスポンス', '送信', '受信'],
+                tertiary: ['通信', 'メッセージ', '呼び出し', 'コール', '接続'],
+                actors: ['ユーザー', 'システム', 'サーバー', 'クライアント', 'データベース', 'DB', 'API', 'ブラウザ', 'アプリ', 'サービス'],
+                verbs: ['送る', '送信', '要求', 'リクエスト', '問い合わせ', '返す', '返答', '応答', 'レスポンス']
+            },
+            gantt: {
+                primary: ['ガント', 'ガントチャート', 'gantt', 'スケジュール'],
+                secondary: ['期間', 'タイムライン', '工程', 'プロジェクト', '計画', '予定'],
+                tertiary: ['開始', '終了', '完了', '実施'],
+                datePatterns: [/\d{4}[-年]\d{1,2}[-月]\d{1,2}/, /\d{1,2}月\d{1,2}日/],
+                durationWords: ['から', 'まで', '～', '〜', '間', '期間', '日間', '週間', 'ヶ月', 'か月']
+            },
+            pie: {
+                primary: ['円グラフ', 'pie', 'パイチャート'],
+                secondary: ['割合', 'パーセント', '%', '比率', '構成', '内訳', '分布'],
+                tertiary: ['シェア', '占める', '合計', '全体'],
+                numberPattern: /\d+\s*[%％]/
+            },
+            mindmap: {
+                primary: ['マインドマップ', 'mindmap', 'マップ'],
+                secondary: ['階層', '分類', 'カテゴリ', 'グループ', '体系'],
+                tertiary: ['種類', 'タイプ', '区分', '部門', '項目'],
+                structureWords: ['配下', '下位', '上位', '親', '子', '含む', '属する']
+            },
+            flowchart: {
+                primary: ['フロー', 'フローチャート', 'flowchart', '流れ図'],
+                secondary: ['手順', 'ステップ', 'プロセス', '処理', '工程', '流れ'],
+                tertiary: ['開始', '終了', '次に', 'その後', 'そして'],
+                conditionalWords: ['もし', 'if', '判定', '分岐', 'チェック', '確認', '?', 'か？', '場合'],
+                flowIndicators: ['→', '⇒', '↓', '次', '後', 'から']
+            }
+        };
+
+        // スコアリングベースの自動判定
+        function detectDiagramType(text) {
+            const scores = {
+                sequence: 0,
+                gantt: 0,
+                pie: 0,
+                mindmap: 0,
+                flowchart: 0
+            };
+
+            const lowerText = text.toLowerCase();
+
+            // 各タイプのスコアを計算
+            for (const [type, keywords] of Object.entries(DIAGRAM_KEYWORDS)) {
+                // Primary keywords (重み: 10)
+                keywords.primary?.forEach(kw => {
+                    if (text.includes(kw) || lowerText.includes(kw.toLowerCase())) {
+                        scores[type] += 10;
+                    }
+                });
+
+                // Secondary keywords (重み: 5)
+                keywords.secondary?.forEach(kw => {
+                    if (text.includes(kw)) {
+                        scores[type] += 5;
+                    }
+                });
+
+                // Tertiary keywords (重み: 2)
+                keywords.tertiary?.forEach(kw => {
+                    if (text.includes(kw)) {
+                        scores[type] += 2;
+                    }
+                });
+
+                // 特殊パターンチェック
+                switch(type) {
+                    case 'sequence':
+                        // アクターの検出
+                        const actorCount = keywords.actors.filter(actor => text.includes(actor)).length;
+                        if (actorCount >= 2) scores[type] += actorCount * 3;
+
+                        // 動詞の検出
+                        const verbCount = keywords.verbs.filter(verb => text.includes(verb)).length;
+                        if (verbCount >= 2) scores[type] += verbCount * 2;
+                        break;
+
+                    case 'gantt':
+                        // 日付パターンの検出
+                        const hasDatePattern = keywords.datePatterns.some(pattern => pattern.test(text));
+                        if (hasDatePattern) scores[type] += 8;
+
+                        // 期間表現の検出
+                        const durationCount = keywords.durationWords.filter(word => text.includes(word)).length;
+                        if (durationCount >= 1) scores[type] += durationCount * 3;
+                        break;
+
+                    case 'pie':
+                        // パーセント表記の検出
+                        const percentMatches = text.match(keywords.numberPattern);
+                        if (percentMatches) {
+                            scores[type] += percentMatches.length * 4;
+                        }
+                        break;
+
+                    case 'mindmap':
+                        // 構造化表現の検出
+                        if (text.includes(':') || text.includes('：')) {
+                            const colonCount = (text.match(/[:：]/g) || []).length;
+                            if (colonCount >= 1) scores[type] += colonCount * 2;
+                        }
+
+                        // 括弧内の列挙
+                        if (text.includes('(') && text.includes(',')) {
+                            scores[type] += 4;
+                        }
+                        break;
+
+                    case 'flowchart':
+                        // 条件分岐の検出
+                        const conditionalCount = keywords.conditionalWords.filter(word => text.includes(word)).length;
+                        if (conditionalCount >= 1) scores[type] += conditionalCount * 3;
+
+                        // フロー指示子の検出
+                        const flowCount = keywords.flowIndicators.filter(ind => text.includes(ind)).length;
+                        if (flowCount >= 1) scores[type] += flowCount * 2;
+                        break;
+                }
+            }
+
+            // 最高スコアのタイプを返す
+            let maxScore = 0;
+            let detectedType = 'flowchart'; // デフォルト
+
+            for (const [type, score] of Object.entries(scores)) {
+                if (score > maxScore) {
+                    maxScore = score;
+                    detectedType = type;
+                }
+            }
+
+            console.log('Detection scores:', scores, '→', detectedType);
+            return detectedType;
+        }
+
+        // テキストから図を生成（メインエントリーポイント）
         function textToMermaid(text, type) {
             if (type !== 'auto') {
                 return generateSpecificDiagram(text, type);
             }
 
-            // 自動判定ロジック
-            if (containsSequenceKeywords(text)) {
-                return generateSequenceDiagram(text);
-            } else if (containsGanttKeywords(text)) {
-                return generateGanttChart(text);
-            } else if (containsPieKeywords(text)) {
-                return generatePieChart(text);
-            } else if (containsMindmapKeywords(text)) {
-                return generateMindmap(text);
-            } else {
-                return generateFlowchart(text);
-            }
+            // 高精度自動判定
+            const detectedType = detectDiagramType(text);
+            return generateSpecificDiagram(text, detectedType);
         }
 
         function generateSpecificDiagram(text, type) {
@@ -673,64 +810,115 @@
             }
         }
 
-        function containsSequenceKeywords(text) {
-            return /シーケンス|やりとり|問い合わせ|応答|リクエスト|レスポンス/i.test(text);
-        }
-
-        function containsGanttKeywords(text) {
-            return /ガント|スケジュール|期間|タイムライン|から.*まで|月|週/i.test(text);
-        }
-
-        function containsPieKeywords(text) {
-            return /割合|パーセント|%|比率|構成|内訳/i.test(text);
-        }
-
-        function containsMindmapKeywords(text) {
-            return /マインドマップ|階層|分類|カテゴリ|\(.*,.*,.*\)/i.test(text);
-        }
-
-        // フローチャート生成
+        // ================================================================================
+        // 高精度フローチャート生成
+        // ================================================================================
         function generateFlowchart(text) {
             let mermaidCode = 'graph TD\n';
-            const lines = text.split(/[,、。\n→]/).filter(l => l.trim());
 
-            if (lines.length === 0) return mermaidCode + '    A[入力なし]';
+            // 区切り文字で分割（矢印、句読点、改行）
+            const delimiters = /[,、。\n→⇒↓]/;
+            let lines = text.split(delimiters).map(l => l.trim()).filter(l => l);
 
-            for (let i = 0; i < lines.length; i++) {
-                const current = sanitizeMermaidText(lines[i].trim());
-                if (!current) continue;
+            // 「次に」「その後」などの接続詞で分割
+            const expandedLines = [];
+            lines.forEach(line => {
+                const subLines = line.split(/(?:次に|その後|それから|続いて|そして)/);
+                subLines.forEach(sub => {
+                    if (sub.trim()) expandedLines.push(sub.trim());
+                });
+            });
+            lines = expandedLines;
 
-                const nodeId = String.fromCharCode(65 + i);
+            if (lines.length === 0) {
+                return mermaidCode + '    A[テキストを入力してください]';
+            }
 
-                if (i === 0) {
-                    mermaidCode += `    ${nodeId}([${current}])\n`;
-                } else if (i === lines.length - 1) {
-                    mermaidCode += `    ${nodeId}([${current}])\n`;
-                } else if (current.includes('?') || current.includes('判定') || current.includes('チェック')) {
-                    mermaidCode += `    ${nodeId}{${current}}\n`;
-                } else {
-                    mermaidCode += `    ${nodeId}[${current}]\n`;
+            let nodeCounter = 0;
+            const nodes = [];
+
+            lines.forEach((line, index) => {
+                const content = sanitizeMermaidText(line);
+                if (!content) return;
+
+                const nodeId = String.fromCharCode(65 + nodeCounter++);
+                let nodeType = 'default';
+
+                // ノードタイプの判定（優先度順）
+                if (index === 0) {
+                    // 開始ノード
+                    nodeType = 'start';
+                } else if (index === lines.length - 1) {
+                    // 終了ノード
+                    nodeType = 'end';
+                } else if (/[?？]|判定|チェック|確認|検証|もし|if|分岐|条件/.test(content)) {
+                    // 条件分岐ノード
+                    nodeType = 'decision';
+                } else if (/入力|取得|読|ロード|受|受信|受け取/.test(content)) {
+                    // 入力ノード
+                    nodeType = 'input';
+                } else if (/出力|書|保存|送|送信|表示|返/.test(content)) {
+                    // 出力ノード
+                    nodeType = 'output';
+                } else if (/処理|実行|計算|変換|生成|作成/.test(content)) {
+                    // 処理ノード
+                    nodeType = 'process';
                 }
 
-                if (i > 0) {
-                    const prevId = String.fromCharCode(65 + i - 1);
-                    mermaidCode += `    ${prevId} --> ${nodeId}\n`;
+                nodes.push({ id: nodeId, content, type: nodeType });
+            });
+
+            // ノードの定義
+            nodes.forEach(node => {
+                let nodeDefinition;
+                switch(node.type) {
+                    case 'start':
+                    case 'end':
+                        nodeDefinition = `${node.id}([${node.content}])`;
+                        break;
+                    case 'decision':
+                        nodeDefinition = `${node.id}{${node.content}}`;
+                        break;
+                    case 'input':
+                    case 'output':
+                        nodeDefinition = `${node.id}[/${node.content}/]`;
+                        break;
+                    case 'process':
+                    default:
+                        nodeDefinition = `${node.id}[${node.content}]`;
+                        break;
+                }
+                mermaidCode += `    ${nodeDefinition}\n`;
+            });
+
+            // エッジの定義（順次接続）
+            for (let i = 0; i < nodes.length - 1; i++) {
+                const from = nodes[i].id;
+                const to = nodes[i + 1].id;
+
+                if (nodes[i].type === 'decision') {
+                    // 判定ノードの場合は条件付き
+                    mermaidCode += `    ${from} -->|Yes| ${to}\n`;
+                } else {
+                    mermaidCode += `    ${from} --> ${to}\n`;
                 }
             }
 
             return mermaidCode;
         }
 
-        // シーケンス図生成
+        // ================================================================================
+        // 高精度シーケンス図生成
+        // ================================================================================
         function generateSequenceDiagram(text) {
             let mermaidCode = 'sequenceDiagram\n';
 
-            const participants = extractParticipants(text);
+            const participants = extractParticipantsAdvanced(text);
             participants.forEach(p => {
-                mermaidCode += `    participant ${p}\n`;
+                mermaidCode += `    participant ${sanitizeMermaidText(p)}\n`;
             });
 
-            const interactions = extractInteractions(text, participants);
+            const interactions = extractInteractionsAdvanced(text, participants);
             interactions.forEach(interaction => {
                 mermaidCode += `    ${interaction}\n`;
             });
@@ -738,152 +926,287 @@
             return mermaidCode;
         }
 
-        function extractParticipants(text) {
+        function extractParticipantsAdvanced(text) {
             const participants = [];
-            const commonParticipants = ['ユーザー', 'システム', 'データベース', 'サーバー', 'クライアント', 'API', 'ブラウザ'];
+            const seen = new Set();
 
-            commonParticipants.forEach(p => {
-                if (text.includes(p) && !participants.includes(p)) {
-                    participants.push(p);
+            // 一般的なアクター名（優先順位付き）
+            const commonActors = [
+                'ユーザー', 'User', 'クライアント', 'Client',
+                'システム', 'System', 'アプリ', 'Application', 'App',
+                'サーバー', 'Server', 'バックエンド', 'Backend',
+                'データベース', 'Database', 'DB',
+                'API', 'WebAPI', 'REST API',
+                'ブラウザ', 'Browser',
+                'サービス', 'Service',
+                '管理者', 'Admin', 'Administrator'
+            ];
+
+            // 一般的なアクター名の検出
+            commonActors.forEach(actor => {
+                if (text.includes(actor) && !seen.has(actor.toLowerCase())) {
+                    participants.push(actor);
+                    seen.add(actor.toLowerCase());
                 }
             });
 
+            // カスタムアクターの検出（助詞で分割）
             if (participants.length < 2) {
-                const parts = text.split(/[、,]/);
-                parts.slice(0, 3).forEach(part => {
-                    const cleaned = part.trim().split(/[がはをに]/)[0].trim();
-                    if (cleaned && cleaned.length < 15 && !participants.includes(cleaned)) {
-                        participants.push(cleaned);
+                const parts = text.split(/[、,。]/);
+                parts.forEach(part => {
+                    // 「AがBにCを送る」のようなパターンから抽出
+                    const match = part.match(/([^がはをに]+)(?:が|は|を|に)/);
+                    if (match) {
+                        const candidate = match[1].trim();
+                        if (candidate.length > 0 && candidate.length < 20 && !seen.has(candidate.toLowerCase())) {
+                            participants.push(candidate);
+                            seen.add(candidate.toLowerCase());
+                        }
                     }
                 });
             }
 
-            return participants.length > 0 ? participants : ['A', 'B'];
+            // 最低2つのアクターを確保
+            if (participants.length === 0) {
+                return ['送信者', '受信者'];
+            } else if (participants.length === 1) {
+                participants.push('システム');
+            }
+
+            return participants.slice(0, 5); // 最大5アクター
         }
 
-        function extractInteractions(text, participants) {
+        function extractInteractionsAdvanced(text, participants) {
             const interactions = [];
-            const sentences = text.split(/[。、\n]/);
+            const sentences = text.split(/[。\n]/);
 
-            for (let sentence of sentences) {
+            sentences.forEach(sentence => {
                 sentence = sentence.trim();
-                if (!sentence) continue;
+                if (!sentence || sentence.length < 3) return;
+
+                // 動作を表す動詞を検出
+                const actionVerbs = ['送る', '送信', '要求', 'リクエスト', '問い合わせ',
+                                    '返す', '返答', '応答', 'レスポンス', '通知',
+                                    '確認', 'チェック', '検証', '実行', '処理'];
 
                 let from = participants[0];
-                let to = participants[1] || participants[0];
+                let to = participants.length > 1 ? participants[1] : participants[0];
                 let action = sanitizeMermaidText(sentence);
+                let arrowType = '->';
 
-                for (let i = 0; i < participants.length - 1; i++) {
-                    if (sentence.includes(participants[i])) {
-                        from = participants[i];
-                        to = participants[i + 1];
-                        break;
+                // 各参加者が文中に出現するかチェック
+                const foundParticipants = participants.filter(p => sentence.includes(p));
+
+                if (foundParticipants.length >= 2) {
+                    // 2つ以上の参加者が見つかった場合、順序を判定
+                    const indices = foundParticipants.map(p => ({
+                        name: p,
+                        index: sentence.indexOf(p)
+                    })).sort((a, b) => a.index - b.index);
+
+                    from = indices[0].name;
+                    to = indices[1].name;
+                } else if (foundParticipants.length === 1) {
+                    // 1つだけの場合
+                    if (sentence.includes('返') || sentence.includes('応答') || sentence.includes('レスポンス')) {
+                        to = foundParticipants[0];
+                        from = participants.find(p => p !== to) || participants[1];
+                        arrowType = '-->';
+                    } else {
+                        from = foundParticipants[0];
+                        to = participants.find(p => p !== from) || participants[1];
                     }
                 }
 
-                if (sentence.includes('返') || sentence.includes('応答') || sentence.includes('レスポンス')) {
-                    interactions.push(`${to}-->${from}: ${action}`);
-                } else {
-                    interactions.push(`${from}->${to}: ${action}`);
+                // 矢印のタイプを判定
+                if (sentence.includes('返') || sentence.includes('応答') || sentence.includes('レスポンス') || sentence.includes('戻')) {
+                    arrowType = '-->';
+                } else if (sentence.includes('非同期') || sentence.includes('async')) {
+                    arrowType = '->>';
+                }
+
+                // アクション内容をクリーンアップ
+                action = action
+                    .replace(new RegExp(participants.join('|'), 'g'), '')
+                    .replace(/が|は|を|に|へ|で/g, '')
+                    .trim();
+
+                if (action) {
+                    interactions.push(`${sanitizeMermaidText(from)}${arrowType}${sanitizeMermaidText(to)}: ${action}`);
+                }
+            });
+
+            // インタラクションが空の場合はデフォルトを追加
+            if (interactions.length === 0) {
+                interactions.push(`${sanitizeMermaidText(participants[0])}->${sanitizeMermaidText(participants[1])}: メッセージ`);
+            }
+
+            return interactions;
+        }
+
+        // ================================================================================
+        // 高精度マインドマップ生成
+        // ================================================================================
+        function generateMindmap(text) {
+            let mermaidCode = 'mindmap\n';
+
+            // メイントピックの抽出
+            let mainTopic = 'メイントピック';
+            let childNodes = [];
+
+            // コロン区切りの階層構造を検出
+            if (text.includes(':') || text.includes('：')) {
+                const parts = text.split(/[:：]/);
+                mainTopic = sanitizeMermaidText(parts[0].trim());
+
+                // サブトピックを抽出
+                for (let i = 1; i < parts.length; i++) {
+                    const subItems = parts[i].split(/[,、()]/).filter(s => s.trim());
+                    subItems.forEach(item => {
+                        const cleaned = sanitizeMermaidText(item.trim());
+                        if (cleaned && cleaned.length > 0) {
+                            childNodes.push(cleaned);
+                        }
+                    });
+                }
+            } else {
+                // 単純なリスト形式
+                const lines = text.split(/[。、\n]/);
+                if (lines.length > 0) {
+                    mainTopic = sanitizeMermaidText(lines[0].trim());
+                    lines.slice(1).forEach(line => {
+                        const cleaned = sanitizeMermaidText(line.trim());
+                        if (cleaned && cleaned.length > 0) {
+                            childNodes.push(cleaned);
+                        }
+                    });
                 }
             }
 
-            return interactions.length > 0 ? interactions : [`${participants[0]}->${participants[1]}: メッセージ`];
-        }
+            mermaidCode += `  root((${mainTopic}))\n`;
 
-        // マインドマップ生成
-        function generateMindmap(text) {
-            let mermaidCode = 'mindmap\n';
-            mermaidCode += '  root((中心トピック))\n';
+            // 子ノードを追加
+            childNodes.forEach(node => {
+                mermaidCode += `    ${node}\n`;
+            });
 
-            const lines = text.split(/[。、\n]/);
-            let mainTopic = sanitizeMermaidText(lines[0]?.trim() || 'メイントピック');
-
-            if (text.includes(':') || text.includes('(')) {
-                const parts = text.split(/[:：]/);
-                if (parts.length > 0) {
-                    mainTopic = sanitizeMermaidText(parts[0].trim());
-                    mermaidCode = `mindmap\n  root((${mainTopic}))\n`;
-
-                    for (let i = 1; i < parts.length; i++) {
-                        const subParts = parts[i].split(/[,、()]/).filter(s => s.trim());
-                        subParts.forEach(sub => {
-                            const cleaned = sanitizeMermaidText(sub.trim());
-                            if (cleaned) {
-                                mermaidCode += `    ${cleaned}\n`;
-                            }
-                        });
-                    }
-                }
-            } else {
-                lines.slice(1).forEach(line => {
-                    const cleaned = sanitizeMermaidText(line.trim());
-                    if (cleaned) {
-                        mermaidCode += `    ${cleaned}\n`;
-                    }
-                });
+            // 子ノードがない場合はデフォルトを追加
+            if (childNodes.length === 0) {
+                mermaidCode += '    項目1\n    項目2\n    項目3\n';
             }
 
             return mermaidCode;
         }
 
-        // ガントチャート生成
+        // ================================================================================
+        // 高精度ガントチャート生成
+        // ================================================================================
         function generateGanttChart(text) {
             let mermaidCode = 'gantt\n';
             mermaidCode += '    title プロジェクトスケジュール\n';
             mermaidCode += '    dateFormat YYYY-MM-DD\n';
 
             const lines = text.split(/[。、\n]/);
+            let hasValidTask = false;
 
             lines.forEach(line => {
                 line = line.trim();
                 if (!line) return;
 
-                const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})/g);
-                const taskName = sanitizeMermaidText(line.split(/[:(（]/)[0].trim());
+                // 日付パターンを検出（YYYY-MM-DD または YYYY年MM月DD日）
+                const dateMatch = line.match(/(\d{4})[-年](\d{1,2})[-月](\d{1,2})/g);
+                let taskName = sanitizeMermaidText(line.split(/[:(（]/)[0].trim());
 
                 if (dateMatch && dateMatch.length >= 2) {
-                    mermaidCode += `    ${taskName} :${dateMatch[0]}, ${dateMatch[1]}\n`;
+                    // 開始日と終了日がある場合
+                    const start = dateMatch[0].replace(/[年月]/g, '-').replace(/日/g, '');
+                    const end = dateMatch[1].replace(/[年月]/g, '-').replace(/日/g, '');
+                    mermaidCode += `    ${taskName} :${start}, ${end}\n`;
+                    hasValidTask = true;
                 } else if (dateMatch && dateMatch.length === 1) {
-                    mermaidCode += `    ${taskName} :${dateMatch[0]}, 14d\n`;
-                } else if (taskName) {
-                    mermaidCode += `    ${taskName} :2024-01-01, 30d\n`;
+                    // 開始日のみの場合は14日間をデフォルトに
+                    const start = dateMatch[0].replace(/[年月]/g, '-').replace(/日/g, '');
+                    mermaidCode += `    ${taskName} :${start}, 14d\n`;
+                    hasValidTask = true;
+                } else if (/から|まで|～|〜/.test(line)) {
+                    // 期間表現がある場合
+                    if (taskName) {
+                        const today = new Date().toISOString().split('T')[0];
+                        mermaidCode += `    ${taskName} :${today}, 30d\n`;
+                        hasValidTask = true;
+                    }
+                } else if (taskName && taskName.length > 2) {
+                    // タスク名のみの場合
+                    const today = new Date().toISOString().split('T')[0];
+                    mermaidCode += `    ${taskName} :${today}, 14d\n`;
+                    hasValidTask = true;
                 }
             });
+
+            // タスクがない場合はサンプルを追加
+            if (!hasValidTask) {
+                const today = new Date();
+                const todayStr = today.toISOString().split('T')[0];
+                mermaidCode += `    タスク1 :${todayStr}, 30d\n`;
+                mermaidCode += `    タスク2 :${todayStr}, 45d\n`;
+            }
 
             return mermaidCode;
         }
 
-        // 円グラフ生成
+        // ================================================================================
+        // 高精度円グラフ生成
+        // ================================================================================
         function generatePieChart(text) {
             let mermaidCode = 'pie title データ構成\n';
 
             const lines = text.split(/[。、\n]/);
             const dataPoints = [];
+            let totalPercentage = 0;
 
             lines.forEach(line => {
-                const percentMatch = line.match(/(\d+)\s*%/);
-                const numberMatch = line.match(/(\d+)/);
+                // パーセント表記を検出
+                const percentMatch = line.match(/(\d+(?:\.\d+)?)\s*[%％]/);
+                // コロン区切りの数値を検出
+                const colonNumberMatch = line.match(/[:：]\s*(\d+(?:\.\d+)?)/);
 
                 if (percentMatch) {
-                    const label = sanitizeMermaidText(line.replace(/\d+\s*%/, '').trim());
-                    if (label) {
-                        dataPoints.push(`    "${label}" : ${percentMatch[1]}`);
+                    const value = parseFloat(percentMatch[1]);
+                    const label = sanitizeMermaidText(
+                        line.replace(/\d+(?:\.\d+)?\s*[%％]/, '').trim()
+                    );
+                    if (label && value > 0) {
+                        dataPoints.push({ label, value });
+                        totalPercentage += value;
                     }
-                } else if (numberMatch && line.includes(':')) {
-                    const parts = line.split(':');
+                } else if (colonNumberMatch) {
+                    const value = parseFloat(colonNumberMatch[1]);
+                    const parts = line.split(/[:：]/);
                     const label = sanitizeMermaidText(parts[0].trim());
-                    if (label) {
-                        dataPoints.push(`    "${label}" : ${numberMatch[1]}`);
+                    if (label && value > 0) {
+                        dataPoints.push({ label, value });
+                        totalPercentage += value;
                     }
                 }
             });
 
-            if (dataPoints.length === 0) {
-                return 'pie title サンプルデータ\n    "項目A" : 40\n    "項目B" : 30\n    "項目C" : 20\n    "その他" : 10';
+            // データポイントを出力
+            if (dataPoints.length > 0) {
+                dataPoints.forEach(dp => {
+                    mermaidCode += `    "${dp.label}" : ${dp.value}\n`;
+                });
+
+                // 合計が100%未満の場合は「その他」を追加
+                if (totalPercentage < 100 && totalPercentage > 0) {
+                    const other = 100 - totalPercentage;
+                    mermaidCode += `    "その他" : ${other.toFixed(1)}\n`;
+                }
+            } else {
+                // デフォルトデータ
+                return 'pie title データ構成\n    "項目A" : 40\n    "項目B" : 30\n    "項目C" : 20\n    "その他" : 10';
             }
 
-            return mermaidCode + dataPoints.join('\n');
+            return mermaidCode;
         }
 
         // Mermaidテキストのサニタイズ
