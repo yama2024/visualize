@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualize - 図解アプリケーション</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+
+        .input-section, .output-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .input-area {
+            width: 100%;
+            min-height: 300px;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        .input-area:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            flex: 1;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .diagram-type-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .diagram-type-btn {
+            padding: 8px 16px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .diagram-type-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .diagram-type-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .output-area {
+            min-height: 400px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+            background: #fafafa;
+            overflow: auto;
+        }
+
+        .placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        .example-section {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-top: 20px;
+            border-radius: 10px;
+        }
+
+        .example-title {
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .example-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .example-list li {
+            padding: 8px 0;
+            color: #666;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .example-list li:hover {
+            color: #667eea;
+        }
+
+        .example-list li:before {
+            content: "▹ ";
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        @media (max-width: 968px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .error-message {
+            background: #fee;
+            border: 1px solid #fcc;
+            border-radius: 6px;
+            padding: 15px;
+            color: #c33;
+            margin-top: 10px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Visualize</h1>
+            <p>テキストを入力するだけで、わかりやすい図解を自動生成</p>
+        </div>
+
+        <div class="content">
+            <div class="input-section">
+                <h2 class="section-title">📝 入力内容</h2>
+
+                <div class="diagram-type-selector">
+                    <button class="diagram-type-btn active" data-type="auto">自動判定</button>
+                    <button class="diagram-type-btn" data-type="flowchart">フローチャート</button>
+                    <button class="diagram-type-btn" data-type="sequence">シーケンス図</button>
+                    <button class="diagram-type-btn" data-type="mindmap">マインドマップ</button>
+                    <button class="diagram-type-btn" data-type="gantt">ガントチャート</button>
+                    <button class="diagram-type-btn" data-type="pie">円グラフ</button>
+                </div>
+
+                <textarea
+                    class="input-area"
+                    id="userInput"
+                    placeholder="図解したい内容を自由に入力してください...&#10;&#10;例:&#10;・プロジェクトの進め方を説明&#10;・システムの処理フローを記述&#10;・タスクの関係性を列挙&#10;・データの内訳を数値で入力"
+                ></textarea>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" id="visualizeBtn">
+                        🎨 図解する
+                    </button>
+                    <button class="btn btn-secondary" id="clearBtn">
+                        🗑️ クリア
+                    </button>
+                </div>
+
+                <div class="example-section">
+                    <div class="example-title">💡 入力例（クリックで試せます）</div>
+                    <ul class="example-list">
+                        <li data-example="flowchart">開始 → データ入力 → 処理 → 結果出力 → 終了</li>
+                        <li data-example="sequence">ユーザー、システム、データベースの3つの関係で、ユーザーがログイン要求、システムがDBに問い合わせ、DBが認証結果を返す</li>
+                        <li data-example="mindmap">Webアプリケーション: フロントエンド(React, Vue, Angular), バックエンド(Node.js, Python, Java), データベース(MySQL, MongoDB, PostgreSQL)</li>
+                        <li data-example="gantt">プロジェクト計画: 要件定義(2024-01-01から2024-01-15), 設計(2024-01-16から2024-02-15), 開発(2024-02-16から2024-04-30)</li>
+                        <li data-example="pie">売上構成: 製品A 40%, 製品B 30%, 製品C 20%, その他 10%</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="output-section">
+                <h2 class="section-title">🎯 図解結果</h2>
+                <div class="output-area" id="outputArea">
+                    <div class="placeholder">
+                        ここに図が表示されます<br>
+                        左側にテキストを入力して「図解する」ボタンを押してください
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Mermaid初期化
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+
+        let currentDiagramType = 'auto';
+        let diagramCounter = 0;
+
+        // 図の種類選択
+        document.querySelectorAll('.diagram-type-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.diagram-type-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentDiagramType = this.dataset.type;
+            });
+        });
+
+        // テキストから図を生成
+        function textToMermaid(text, type) {
+            if (type !== 'auto') {
+                return generateSpecificDiagram(text, type);
+            }
+
+            // 自動判定ロジック
+            if (containsSequenceKeywords(text)) {
+                return generateSequenceDiagram(text);
+            } else if (containsGanttKeywords(text)) {
+                return generateGanttChart(text);
+            } else if (containsPieKeywords(text)) {
+                return generatePieChart(text);
+            } else if (containsMindmapKeywords(text)) {
+                return generateMindmap(text);
+            } else {
+                return generateFlowchart(text);
+            }
+        }
+
+        function generateSpecificDiagram(text, type) {
+            switch(type) {
+                case 'flowchart': return generateFlowchart(text);
+                case 'sequence': return generateSequenceDiagram(text);
+                case 'mindmap': return generateMindmap(text);
+                case 'gantt': return generateGanttChart(text);
+                case 'pie': return generatePieChart(text);
+                default: return generateFlowchart(text);
+            }
+        }
+
+        function containsSequenceKeywords(text) {
+            return /シーケンス|やりとり|問い合わせ|応答|リクエスト|レスポンス/i.test(text);
+        }
+
+        function containsGanttKeywords(text) {
+            return /ガント|スケジュール|期間|タイムライン|から.*まで|月|週/i.test(text);
+        }
+
+        function containsPieKeywords(text) {
+            return /割合|パーセント|%|比率|構成|内訳/i.test(text);
+        }
+
+        function containsMindmapKeywords(text) {
+            return /マインドマップ|階層|分類|カテゴリ|\(.*,.*,.*\)/i.test(text);
+        }
+
+        // フローチャート生成
+        function generateFlowchart(text) {
+            let mermaidCode = 'graph TD\n';
+            const lines = text.split(/[,、。\n→]/).filter(l => l.trim());
+
+            if (lines.length === 0) return mermaidCode + '    A[入力なし]';
+
+            for (let i = 0; i < lines.length; i++) {
+                const current = sanitizeMermaidText(lines[i].trim());
+                if (!current) continue;
+
+                const nodeId = String.fromCharCode(65 + i);
+
+                if (i === 0) {
+                    mermaidCode += `    ${nodeId}([${current}])\n`;
+                } else if (i === lines.length - 1) {
+                    mermaidCode += `    ${nodeId}([${current}])\n`;
+                } else if (current.includes('?') || current.includes('判定') || current.includes('チェック')) {
+                    mermaidCode += `    ${nodeId}{${current}}\n`;
+                } else {
+                    mermaidCode += `    ${nodeId}[${current}]\n`;
+                }
+
+                if (i > 0) {
+                    const prevId = String.fromCharCode(65 + i - 1);
+                    mermaidCode += `    ${prevId} --> ${nodeId}\n`;
+                }
+            }
+
+            return mermaidCode;
+        }
+
+        // シーケンス図生成
+        function generateSequenceDiagram(text) {
+            let mermaidCode = 'sequenceDiagram\n';
+
+            // 参加者の抽出
+            const participants = extractParticipants(text);
+            participants.forEach(p => {
+                mermaidCode += `    participant ${p}\n`;
+            });
+
+            // やりとりの抽出
+            const interactions = extractInteractions(text, participants);
+            interactions.forEach(interaction => {
+                mermaidCode += `    ${interaction}\n`;
+            });
+
+            return mermaidCode;
+        }
+
+        function extractParticipants(text) {
+            const participants = [];
+            const commonParticipants = ['ユーザー', 'システム', 'データベース', 'サーバー', 'クライアント', 'API', 'ブラウザ'];
+
+            commonParticipants.forEach(p => {
+                if (text.includes(p) && !participants.includes(p)) {
+                    participants.push(p);
+                }
+            });
+
+            // カンマやスペースで区切られた最初の部分から抽出
+            if (participants.length < 2) {
+                const parts = text.split(/[、,]/);
+                parts.slice(0, 3).forEach(part => {
+                    const cleaned = part.trim().split(/[がはをに]/)[0].trim();
+                    if (cleaned && cleaned.length < 15 && !participants.includes(cleaned)) {
+                        participants.push(cleaned);
+                    }
+                });
+            }
+
+            return participants.length > 0 ? participants : ['A', 'B'];
+        }
+
+        function extractInteractions(text, participants) {
+            const interactions = [];
+            const sentences = text.split(/[。、\n]/);
+
+            for (let sentence of sentences) {
+                sentence = sentence.trim();
+                if (!sentence) continue;
+
+                let from = participants[0];
+                let to = participants[1] || participants[0];
+                let action = sanitizeMermaidText(sentence);
+
+                // より高度な解析
+                for (let i = 0; i < participants.length - 1; i++) {
+                    if (sentence.includes(participants[i])) {
+                        from = participants[i];
+                        to = participants[i + 1];
+                        break;
+                    }
+                }
+
+                if (sentence.includes('返') || sentence.includes('応答') || sentence.includes('レスポンス')) {
+                    interactions.push(`${to}-->${from}: ${action}`);
+                } else {
+                    interactions.push(`${from}->${to}: ${action}`);
+                }
+            }
+
+            return interactions.length > 0 ? interactions : [`${participants[0]}->${participants[1]}: メッセージ`];
+        }
+
+        // マインドマップ生成
+        function generateMindmap(text) {
+            let mermaidCode = 'mindmap\n';
+            mermaidCode += '  root((中心トピック))\n';
+
+            const lines = text.split(/[。、\n]/);
+            let mainTopic = sanitizeMermaidText(lines[0]?.trim() || 'メイントピック');
+
+            // 階層構造の解析
+            if (text.includes(':') || text.includes('(')) {
+                const parts = text.split(/[:：]/);
+                if (parts.length > 0) {
+                    mainTopic = sanitizeMermaidText(parts[0].trim());
+                    mermaidCode = `mindmap\n  root((${mainTopic}))\n`;
+
+                    for (let i = 1; i < parts.length; i++) {
+                        const subParts = parts[i].split(/[,、()]/).filter(s => s.trim());
+                        subParts.forEach(sub => {
+                            const cleaned = sanitizeMermaidText(sub.trim());
+                            if (cleaned) {
+                                mermaidCode += `    ${cleaned}\n`;
+                            }
+                        });
+                    }
+                }
+            } else {
+                // シンプルな列挙
+                lines.slice(1).forEach(line => {
+                    const cleaned = sanitizeMermaidText(line.trim());
+                    if (cleaned) {
+                        mermaidCode += `    ${cleaned}\n`;
+                    }
+                });
+            }
+
+            return mermaidCode;
+        }
+
+        // ガントチャート生成
+        function generateGanttChart(text) {
+            let mermaidCode = 'gantt\n';
+            mermaidCode += '    title プロジェクトスケジュール\n';
+            mermaidCode += '    dateFormat YYYY-MM-DD\n';
+
+            const lines = text.split(/[。、\n]/);
+            let section = 'タスク';
+
+            lines.forEach(line => {
+                line = line.trim();
+                if (!line) return;
+
+                const dateMatch = line.match(/(\d{4}-\d{2}-\d{2})/g);
+                const taskName = sanitizeMermaidText(line.split(/[:(（]/)[0].trim());
+
+                if (dateMatch && dateMatch.length >= 2) {
+                    mermaidCode += `    ${taskName} :${dateMatch[0]}, ${dateMatch[1]}\n`;
+                } else if (dateMatch && dateMatch.length === 1) {
+                    mermaidCode += `    ${taskName} :${dateMatch[0]}, 14d\n`;
+                } else if (taskName) {
+                    mermaidCode += `    ${taskName} :2024-01-01, 30d\n`;
+                }
+            });
+
+            return mermaidCode;
+        }
+
+        // 円グラフ生成
+        function generatePieChart(text) {
+            let mermaidCode = 'pie title データ構成\n';
+
+            const lines = text.split(/[。、\n]/);
+            const dataPoints = [];
+
+            lines.forEach(line => {
+                const percentMatch = line.match(/(\d+)\s*%/);
+                const numberMatch = line.match(/(\d+)/);
+
+                if (percentMatch) {
+                    const label = sanitizeMermaidText(line.replace(/\d+\s*%/, '').trim());
+                    if (label) {
+                        dataPoints.push(`    "${label}" : ${percentMatch[1]}`);
+                    }
+                } else if (numberMatch && line.includes(':')) {
+                    const parts = line.split(':');
+                    const label = sanitizeMermaidText(parts[0].trim());
+                    if (label) {
+                        dataPoints.push(`    "${label}" : ${numberMatch[1]}`);
+                    }
+                }
+            });
+
+            if (dataPoints.length === 0) {
+                return 'pie title サンプルデータ\n    "項目A" : 40\n    "項目B" : 30\n    "項目C" : 20\n    "その他" : 10';
+            }
+
+            return mermaidCode + dataPoints.join('\n');
+        }
+
+        // Mermaidテキストのサニタイズ
+        function sanitizeMermaidText(text) {
+            return text
+                .replace(/[[\]{}]/g, '')
+                .replace(/[<>]/g, '')
+                .replace(/["']/g, '')
+                .replace(/\s+/g, ' ')
+                .trim()
+                .substring(0, 50);
+        }
+
+        // 図解実行
+        async function visualize() {
+            const input = document.getElementById('userInput').value.trim();
+            const outputArea = document.getElementById('outputArea');
+
+            if (!input) {
+                outputArea.innerHTML = '<div class="error-message">⚠️ テキストを入力してください</div>';
+                return;
+            }
+
+            try {
+                outputArea.innerHTML = '<div class="placeholder"><div class="loading"></div> 図を生成中...</div>';
+
+                const mermaidCode = textToMermaid(input, currentDiagramType);
+                console.log('Generated Mermaid code:', mermaidCode);
+
+                diagramCounter++;
+                const diagramId = 'diagram-' + diagramCounter;
+
+                outputArea.innerHTML = `<div id="${diagramId}" class="mermaid">${mermaidCode}</div>`;
+
+                await mermaid.run({
+                    nodes: [document.getElementById(diagramId)]
+                });
+
+            } catch (error) {
+                console.error('Visualization error:', error);
+                outputArea.innerHTML = `
+                    <div class="error-message">
+                        ❌ 図の生成に失敗しました<br>
+                        ${error.message}<br><br>
+                        別の表現で入力するか、図の種類を変更してみてください
+                    </div>
+                `;
+            }
+        }
+
+        // イベントリスナー
+        document.getElementById('visualizeBtn').addEventListener('click', visualize);
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('userInput').value = '';
+            document.getElementById('outputArea').innerHTML = '<div class="placeholder">ここに図が表示されます<br>左側にテキストを入力して「図解する」ボタンを押してください</div>';
+        });
+
+        // 例文クリック
+        document.querySelectorAll('.example-list li').forEach(li => {
+            li.addEventListener('click', function() {
+                const exampleType = this.dataset.example;
+                const exampleTexts = {
+                    flowchart: '開始 → データ入力 → 処理の実行 → 結果の確認 → 終了',
+                    sequence: 'ユーザー、システム、データベースの関係。ユーザーがログイン要求。システムがDBに認証問い合わせ。DBが認証結果を返す。システムがユーザーに結果を通知。',
+                    mindmap: 'Webアプリケーション開発: フロントエンド(React, Vue, Angular), バックエンド(Node.js, Python, Java), データベース(MySQL, MongoDB, PostgreSQL), インフラ(AWS, Docker, Kubernetes)',
+                    gantt: 'プロジェクト計画。要件定義: 2024-01-01から2024-01-15。設計: 2024-01-16から2024-02-15。開発: 2024-02-16から2024-04-30。テスト: 2024-05-01から2024-05-31。',
+                    pie: '売上構成: 製品A 40%, 製品B 30%, 製品C 20%, その他 10%'
+                };
+
+                document.getElementById('userInput').value = exampleTexts[exampleType];
+
+                // 対応する図タイプを自動選択
+                document.querySelectorAll('.diagram-type-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                    if (btn.dataset.type === exampleType) {
+                        btn.classList.add('active');
+                        currentDiagramType = exampleType;
+                    }
+                });
+            });
+        });
+
+        // Enterキーで図解実行（Shift+Enterで改行）
+        document.getElementById('userInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                visualize();
+            }
+        });
+    </script>
+</body>
+</html>
