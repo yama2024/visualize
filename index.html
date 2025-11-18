@@ -275,7 +275,7 @@
             border-radius: 12px;
             padding: 24px;
             background: var(--bg-light);
-            overflow: auto;
+            overflow: hidden;
             position: relative;
             transition: all 0.3s ease;
         }
@@ -283,6 +283,92 @@
         .output-area.has-content {
             background: white;
             border-color: var(--primary-color);
+        }
+
+        .output-area.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            max-height: none;
+            border-radius: 0;
+            z-index: 9999;
+            margin: 0;
+        }
+
+        .diagram-viewport {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            cursor: grab;
+        }
+
+        .diagram-viewport:active {
+            cursor: grabbing;
+        }
+
+        .diagram-container {
+            display: inline-block;
+            min-width: 100%;
+            min-height: 100%;
+            transition: transform 0.2s ease;
+            transform-origin: center center;
+        }
+
+        .zoom-controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .zoom-controls.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .zoom-btn {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+            color: var(--text-dark);
+        }
+
+        .zoom-btn:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: scale(1.1);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .zoom-level {
+            background: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            color: var(--text-dark);
         }
 
         .output-actions {
@@ -597,6 +683,10 @@
                     <button class="btn btn-icon tooltip" id="downloadBtn">
                         <span>💾 保存</span>
                         <span class="tooltiptext">SVGとして保存</span>
+                    </button>
+                    <button class="btn btn-icon tooltip" id="fullscreenBtn">
+                        <span>🔍 拡大</span>
+                        <span class="tooltiptext">フルスクリーン表示</span>
                     </button>
                 </div>
             </div>
@@ -1246,14 +1336,31 @@
                 diagramCounter++;
                 const diagramId = 'diagram-' + diagramCounter;
 
-                outputArea.innerHTML = `<div id="${diagramId}" class="mermaid diagram-wrapper">${mermaidCode}</div>`;
+                // ズーム可能なコンテナを作成
+                outputArea.innerHTML = `
+                    <div class="diagram-viewport" id="diagramViewport">
+                        <div class="diagram-container" id="diagramContainer">
+                            <div id="${diagramId}" class="mermaid diagram-wrapper">${mermaidCode}</div>
+                        </div>
+                    </div>
+                    <div class="zoom-controls" id="zoomControls">
+                        <button class="zoom-btn" id="zoomInBtn" title="拡大">➕</button>
+                        <div class="zoom-level" id="zoomLevel">100%</div>
+                        <button class="zoom-btn" id="zoomOutBtn" title="縮小">➖</button>
+                        <button class="zoom-btn" id="zoomResetBtn" title="リセット">⟲</button>
+                    </div>
+                `;
 
                 await mermaid.run({
                     nodes: [document.getElementById(diagramId)]
                 });
 
+                // ズーム機能を初期化
+                initializeZoom();
+
                 outputArea.classList.add('has-content');
                 outputActions.classList.add('show');
+                document.getElementById('zoomControls').classList.add('show');
                 showToast('✅ 図の生成に成功しました！', 'success');
 
             } catch (error) {
@@ -1315,12 +1422,149 @@
             }
         });
 
+        // ================================================================================
+        // ズーム＆フルスクリーン機能
+        // ================================================================================
+
+        let currentZoom = 1.0;
+        let isDragging = false;
+        let startX, startY, scrollLeft, scrollTop;
+
+        // フルスクリーン機能
+        document.getElementById('fullscreenBtn').addEventListener('click', () => {
+            const outputArea = document.getElementById('outputArea');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+            if (!outputArea.classList.contains('fullscreen')) {
+                outputArea.classList.add('fullscreen');
+                fullscreenBtn.querySelector('span').textContent = '🔍 縮小';
+                fullscreenBtn.querySelector('.tooltiptext').textContent = '通常表示に戻す';
+                showToast('🔍 フルスクリーン表示', 'success');
+            } else {
+                outputArea.classList.remove('fullscreen');
+                fullscreenBtn.querySelector('span').textContent = '🔍 拡大';
+                fullscreenBtn.querySelector('.tooltiptext').textContent = 'フルスクリーン表示';
+                showToast('🔍 通常表示に戻りました', 'success');
+            }
+        });
+
+        // ESCキーでフルスクリーン解除
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                const outputArea = document.getElementById('outputArea');
+                if (outputArea.classList.contains('fullscreen')) {
+                    outputArea.classList.remove('fullscreen');
+                    const fullscreenBtn = document.getElementById('fullscreenBtn');
+                    fullscreenBtn.querySelector('span').textContent = '🔍 拡大';
+                    fullscreenBtn.querySelector('.tooltiptext').textContent = 'フルスクリーン表示';
+                }
+            }
+        });
+
+        // ズーム機能の初期化
+        function initializeZoom() {
+            currentZoom = 1.0;
+            const container = document.getElementById('diagramContainer');
+            const viewport = document.getElementById('diagramViewport');
+
+            if (!container || !viewport) return;
+
+            // ズームイン
+            document.getElementById('zoomInBtn').onclick = () => {
+                if (currentZoom < 3.0) {
+                    currentZoom += 0.2;
+                    applyZoom();
+                    showToast(`🔍 ${Math.round(currentZoom * 100)}%`, 'success');
+                }
+            };
+
+            // ズームアウト
+            document.getElementById('zoomOutBtn').onclick = () => {
+                if (currentZoom > 0.3) {
+                    currentZoom -= 0.2;
+                    applyZoom();
+                    showToast(`🔍 ${Math.round(currentZoom * 100)}%`, 'success');
+                }
+            };
+
+            // ズームリセット
+            document.getElementById('zoomResetBtn').onclick = () => {
+                currentZoom = 1.0;
+                applyZoom();
+                viewport.scrollLeft = 0;
+                viewport.scrollTop = 0;
+                showToast('🔄 リセットしました', 'success');
+            };
+
+            // マウスホイールでズーム
+            viewport.addEventListener('wheel', (e) => {
+                if (e.ctrlKey || e.metaKey) {
+                    e.preventDefault();
+                    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                    const newZoom = currentZoom + delta;
+
+                    if (newZoom >= 0.3 && newZoom <= 3.0) {
+                        currentZoom = newZoom;
+                        applyZoom();
+                    }
+                }
+            }, { passive: false });
+
+            // ドラッグでパン
+            viewport.addEventListener('mousedown', (e) => {
+                if (e.target === viewport || container.contains(e.target)) {
+                    isDragging = true;
+                    startX = e.pageX - viewport.offsetLeft;
+                    startY = e.pageY - viewport.offsetTop;
+                    scrollLeft = viewport.scrollLeft;
+                    scrollTop = viewport.scrollTop;
+                    viewport.style.cursor = 'grabbing';
+                }
+            });
+
+            viewport.addEventListener('mouseleave', () => {
+                isDragging = false;
+                viewport.style.cursor = 'grab';
+            });
+
+            viewport.addEventListener('mouseup', () => {
+                isDragging = false;
+                viewport.style.cursor = 'grab';
+            });
+
+            viewport.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                e.preventDefault();
+                const x = e.pageX - viewport.offsetLeft;
+                const y = e.pageY - viewport.offsetTop;
+                const walkX = (x - startX) * 1.5;
+                const walkY = (y - startY) * 1.5;
+                viewport.scrollLeft = scrollLeft - walkX;
+                viewport.scrollTop = scrollTop - walkY;
+            });
+        }
+
+        // ズームを適用
+        function applyZoom() {
+            const container = document.getElementById('diagramContainer');
+            const zoomLevel = document.getElementById('zoomLevel');
+
+            if (container) {
+                container.style.transform = `scale(${currentZoom})`;
+            }
+
+            if (zoomLevel) {
+                zoomLevel.textContent = `${Math.round(currentZoom * 100)}%`;
+            }
+        }
+
         // イベントリスナー
         document.getElementById('visualizeBtn').addEventListener('click', visualize);
 
         document.getElementById('clearBtn').addEventListener('click', () => {
             document.getElementById('userInput').value = '';
-            document.getElementById('outputArea').innerHTML = `
+            const outputArea = document.getElementById('outputArea');
+            outputArea.innerHTML = `
                 <div class="placeholder">
                     <div class="placeholder-icon">📋</div>
                     <div>
@@ -1329,9 +1573,10 @@
                     </div>
                 </div>
             `;
-            document.getElementById('outputArea').classList.remove('has-content');
+            outputArea.classList.remove('has-content', 'fullscreen');
             document.getElementById('outputActions').classList.remove('show');
             currentMermaidCode = '';
+            currentZoom = 1.0;
             showToast('🗑️ クリアしました', 'success');
         });
 
