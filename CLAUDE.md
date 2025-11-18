@@ -28,10 +28,12 @@ visualize/
 
 ### ファイル詳細
 
-**index.html** (657行)
+**index.html** (1618行)
 - 完全に自己完結型のシングルページアプリケーション
 - HTML構造、CSSスタイル、JavaScriptロジックをすべて含む
 - 外部依存: Mermaid.js CDNのみ
+- 高精度テキスト解析エンジン搭載
+- ズーム・フルスクリーン機能実装
 
 ## 🏗️ アーキテクチャと設計思想
 
@@ -57,10 +59,11 @@ visualize/
 │  │テキスト    │  │  │   Diagram   │ │
 │  │入力エリア  │  │  │   Render    │ │
 │  ├───────────┤  │  │   Area      │ │
-│  │実行ボタン  │  │  │             │ │
-│  ├───────────┤  │  └─────────────┘ │
-│  │例文リスト  │  │                  │
-│  └───────────┘  │                  │
+│  │実行ボタン  │  │  │  ┌────────┐ │ │
+│  ├───────────┤  │  │  │ Zoom   │ │ │
+│  │例文リスト  │  │  │  │Controls│ │ │
+│  └───────────┘  │  │  └────────┘ │ │
+│                 │  └─────────────┘ │
 └─────────────────┴───────────────────┘
 ```
 
@@ -153,6 +156,130 @@ mermaid.run() 実行
 - ユニークなダイアグラムID管理（カウンター使用）
 - エラー時のユーザーフレンドリーなメッセージ表示
 
+### 5. ズーム・フルスクリーン機能
+
+**場所**: `index.html` の `<script>` セクション
+
+**主要関数**:
+- `initializeZoom()`: ズーム機能の初期化
+- `applyZoom()`: ズーム変換の適用
+
+**機能一覧**:
+
+1. **ズームコントロール**
+   - ズームイン/アウトボタン（20%刻み）
+   - ズーム範囲: 30% ～ 300%
+   - リセットボタン（100%に戻す）
+   - リアルタイムズームレベル表示
+
+2. **マウス操作**
+   - **Ctrl/Cmd + マウスホイール**: スムーズズーム（10%刻み）
+   - **ドラッグ＆パン**: 図の移動
+   - グラブカーソルによる視覚的フィードバック
+
+3. **フルスクリーンモード**
+   - フルスクリーンボタンで画面全体表示
+   - ESCキーで終了
+   - 没入型閲覧体験
+
+4. **ユーザーフィードバック**
+   - トースト通知による操作確認
+   - 視覚的なアニメーション
+
+**実装詳細**:
+
+```javascript
+// グローバル状態変数
+let currentZoom = 1.0;
+let isDragging = false;
+let startX, startY, scrollLeft, scrollTop;
+
+// ズーム初期化
+function initializeZoom() {
+    currentZoom = 1.0;
+
+    // ズームボタンのイベントリスナー
+    document.getElementById('zoomInBtn').onclick = () => {
+        if (currentZoom < 3.0) {
+            currentZoom += 0.2;
+            applyZoom();
+            showToast(`ズーム: ${Math.round(currentZoom * 100)}%`);
+        }
+    };
+
+    // マウスホイールズーム
+    viewport.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -0.1 : 0.1;
+            currentZoom = Math.max(0.3, Math.min(3.0, currentZoom + delta));
+            applyZoom();
+        }
+    }, { passive: false });
+
+    // ドラッグ＆パン
+    viewport.addEventListener('mousedown', (e) => {
+        if (e.target === viewport || viewport.contains(e.target)) {
+            isDragging = true;
+            viewport.style.cursor = 'grabbing';
+            startX = e.pageX - viewport.offsetLeft;
+            startY = e.pageY - viewport.offsetTop;
+            scrollLeft = viewport.scrollLeft;
+            scrollTop = viewport.scrollTop;
+        }
+    });
+}
+
+// ズーム適用
+function applyZoom() {
+    const diagram = document.querySelector('#output .mermaid');
+    if (diagram) {
+        diagram.style.transform = `scale(${currentZoom})`;
+        diagram.style.transformOrigin = 'top left';
+    }
+    document.getElementById('zoomLevel').textContent =
+        `${Math.round(currentZoom * 100)}%`;
+}
+```
+
+**CSS実装**:
+
+```css
+.zoom-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.output-area:hover .zoom-controls {
+    opacity: 1;
+}
+
+.zoom-btn {
+    background: white;
+    border: 2px solid #667eea;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.output-area.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background: white;
+}
+```
+
 ## 🎨 UIデザイン
 
 ### カラースキーム
@@ -180,6 +307,10 @@ mermaid.run() 実行
 **グローバル変数**:
 - `currentDiagramType`: 選択中の図タイプ（'auto', 'flowchart', 'sequence', etc.）
 - `diagramCounter`: レンダリングされた図の数（ユニークID生成用）
+- `currentZoom`: 現在のズームレベル（0.3 ～ 3.0）
+- `isDragging`: ドラッグ操作中かどうかのフラグ
+- `startX, startY`: ドラッグ開始位置
+- `scrollLeft, scrollTop`: スクロール位置の保存
 
 ## 🎯 開発ガイドライン
 
@@ -244,6 +375,9 @@ npx serve
 3. 特殊文字を含む入力
 4. 非常に長いテキスト
 5. モバイルビューでのレスポンシブ動作
+6. ズーム機能の動作確認（ボタン、マウスホイール）
+7. フルスクリーンモードの切り替え
+8. ドラッグ＆パン操作の正常動作
 
 ## 🐛 トラブルシューティング
 
@@ -269,6 +403,21 @@ npx serve
 - **確認**: DOM内のダイアグラムID
 - **解決**: カウンターのリセット、ユニークID生成の確認
 
+**問題5**: ズーム操作が反応しない
+- **原因**: イベントリスナーの初期化ミス、または図がレンダリングされていない
+- **確認**: コンソールでエラーを確認、`initializeZoom()` が呼ばれているか
+- **解決**: 図のレンダリング後にズーム初期化を実行
+
+**問題6**: フルスクリーンから戻れない
+- **原因**: ESCキーイベントリスナーの設定ミス
+- **確認**: フルスクリーンボタンのクリックイベント確認
+- **解決**: ESCキーハンドラーの追加、ボタンの状態管理確認
+
+**問題7**: ドラッグ操作が重い
+- **原因**: イベントハンドラーで過剰な処理
+- **確認**: パフォーマンスプロファイラーで確認
+- **解決**: throttle/debounce の実装、CSS transform の活用
+
 ## 🚀 パフォーマンス最適化
 
 ### 現在の最適化
@@ -276,14 +425,17 @@ npx serve
 1. **CDN使用**: Mermaid.jsをCDN経由で読み込み（初回キャッシュ後高速）
 2. **インライン化**: CSS/JSを単一ファイルに統合（HTTPリクエスト削減）
 3. **遅延初期化**: `startOnLoad: false` でMermaid初期化を制御
+4. **CSS Transform**: ズーム機能でGPUアクセラレーションを活用
+5. **イベント最適化**: `passive: false` で必要な場合のみデフォルト動作を防止
 
 ### 将来的な改善案
 
 1. **Service Worker**: オフライン対応
 2. **Mermaidローカルコピー**: CDN依存を排除
 3. **履歴機能**: LocalStorageで過去の図を保存
-4. **エクスポート機能**: SVG/PNG形式でダウンロード
-5. **テーマ切り替え**: ダークモード対応
+4. **テーマ切り替え**: ダークモード対応
+5. **ズーム位置の記憶**: ユーザーのズームレベルとパン位置をLocalStorageに保存
+6. **タッチジェスチャー**: ピンチズーム、スワイプパンのサポート（モバイル最適化）
 
 ## 📊 使用されているMermaid記法
 
@@ -324,6 +476,22 @@ npx serve
 
 ## 📝 変更履歴
 
+### v1.1.0 (2025-11-18)
+- 🔍 ズーム・フルスクリーン機能の追加
+  - ズームイン/アウトボタン（30%～300%）
+  - Ctrl/Cmd + マウスホイールズーム
+  - ドラッグ＆パン機能
+  - フルスクリーンモード（ESCキーで終了）
+  - リアルタイムズームレベル表示
+- 🎯 高精度テキスト解析エンジンの実装
+  - スコアリングベースの図タイプ自動判定
+  - 日本語助詞・動詞パターン認識の強化
+  - キーワード重み付けシステム（Primary: 10, Secondary: 5, Tertiary: 2）
+- ✨ UI/UXの最適化
+  - アニメーション強化
+  - トースト通知システム
+  - コピー・ダウンロード機能
+
 ### v1.0.0 (2025-11-17)
 - 初回リリース
 - 5種類の図タイプをサポート
@@ -338,7 +506,9 @@ npx serve
 - [ ] すべての図タイプで動作確認
 - [ ] ブラウザコンソールにエラーがないか
 - [ ] モバイルビューで表示確認
+- [ ] ズーム・フルスクリーン機能の動作確認
 - [ ] README.mdの更新（機能追加時）
+- [ ] CLAUDE.mdの更新（機能追加時）
 - [ ] 例文の追加（新機能追加時）
 
 ### コミットメッセージ規約
@@ -371,20 +541,27 @@ npx serve
 
 ## 🎯 今後の開発ロードマップ
 
-### Phase 2（予定）
+### Phase 2（実装済み） ✅
+- [x] ズーム・フルスクリーン機能
+- [x] 高精度テキスト解析エンジン
+- [x] トースト通知システム
+
+### Phase 3（予定）
 - [ ] エクスポート機能（SVG, PNG）
 - [ ] 履歴機能（LocalStorage）
 - [ ] テーマ切り替え（ライト/ダーク）
-- [ ] より高度なテキスト解析（NLP）
+- [ ] より高度なテキスト解析（NLP/AI統合）
+- [ ] タッチジェスチャー対応（ピンチズーム）
 
-### Phase 3（予定）
+### Phase 4（予定）
 - [ ] ユーザーアカウント機能
 - [ ] クラウド保存
 - [ ] 共有機能（URL生成）
 - [ ] リアルタイムコラボレーション
+- [ ] カスタムテーマエディター
 
 ---
 
-**最終更新**: 2025年11月17日
+**最終更新**: 2025年11月18日
 **メンテナ**: Claude Code
 **ライセンス**: MIT License
