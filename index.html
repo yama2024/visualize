@@ -592,6 +592,79 @@
             opacity: 1;
         }
 
+        /* ドロップダウンメニュー */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            background-color: white;
+            min-width: 220px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            z-index: 1000;
+            margin-bottom: 8px;
+            border: 2px solid var(--border-color);
+            overflow: hidden;
+            animation: slideUp 0.2s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dropdown-content.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 12px 16px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9rem;
+            border: none;
+            background: white;
+            width: 100%;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            color: var(--primary-color);
+        }
+
+        .dropdown-divider {
+            height: 1px;
+            background: var(--border-color);
+            margin: 4px 0;
+        }
+
+        .dropdown-header {
+            padding: 8px 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         .badge {
             display: inline-block;
             padding: 4px 10px;
@@ -676,14 +749,51 @@
                     </div>
                 </div>
                 <div class="output-actions" id="outputActions">
-                    <button class="btn btn-icon tooltip" id="copyBtn">
-                        <span>📋 コピー</span>
-                        <span class="tooltiptext">Mermaidコードをコピー</span>
-                    </button>
-                    <button class="btn btn-icon tooltip" id="downloadBtn">
-                        <span>💾 保存</span>
-                        <span class="tooltiptext">SVGとして保存</span>
-                    </button>
+                    <!-- コピードロップダウン -->
+                    <div class="dropdown">
+                        <button class="btn btn-icon" id="copyDropdownBtn">
+                            <span>📋 コピー ▼</span>
+                        </button>
+                        <div class="dropdown-content" id="copyDropdown">
+                            <div class="dropdown-header">コピー</div>
+                            <button class="dropdown-item" id="copyCodeBtn">
+                                <span>📝</span>
+                                <span>Mermaidコード</span>
+                            </button>
+                            <button class="dropdown-item" id="copyImageBtn">
+                                <span>🖼️</span>
+                                <span>画像として</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ダウンロードドロップダウン -->
+                    <div class="dropdown">
+                        <button class="btn btn-icon" id="downloadDropdownBtn">
+                            <span>💾 保存 ▼</span>
+                        </button>
+                        <div class="dropdown-content" id="downloadDropdown">
+                            <div class="dropdown-header">ダウンロード</div>
+                            <button class="dropdown-item" id="downloadSvgBtn">
+                                <span>📄</span>
+                                <span>SVG形式</span>
+                            </button>
+                            <div class="dropdown-divider"></div>
+                            <button class="dropdown-item" id="downloadPng1xBtn">
+                                <span>🖼️</span>
+                                <span>PNG (1x)</span>
+                            </button>
+                            <button class="dropdown-item" id="downloadPng2xBtn">
+                                <span>🖼️</span>
+                                <span>PNG (2x 高解像度)</span>
+                            </button>
+                            <button class="dropdown-item" id="downloadPng3xBtn">
+                                <span>🖼️</span>
+                                <span>PNG (3x 超高解像度)</span>
+                            </button>
+                        </div>
+                    </div>
+
                     <button class="btn btn-icon tooltip" id="fullscreenBtn">
                         <span>🔍 拡大</span>
                         <span class="tooltiptext">フルスクリーン表示</span>
@@ -1378,8 +1488,56 @@
             }
         }
 
-        // コピー機能
-        document.getElementById('copyBtn').addEventListener('click', async () => {
+        // ================================================================================
+        // エクスポート機能
+        // ================================================================================
+
+        // ドロップダウンメニューの表示/非表示
+        function toggleDropdown(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const allDropdowns = document.querySelectorAll('.dropdown-content');
+
+            // 他のドロップダウンを閉じる
+            allDropdowns.forEach(d => {
+                if (d.id !== dropdownId) {
+                    d.classList.remove('show');
+                }
+            });
+
+            dropdown.classList.toggle('show');
+        }
+
+        // 外側クリックでドロップダウンを閉じる
+        window.addEventListener('click', (event) => {
+            if (!event.target.matches('.btn-icon') && !event.target.closest('.btn-icon')) {
+                const dropdowns = document.querySelectorAll('.dropdown-content');
+                dropdowns.forEach(dropdown => {
+                    dropdown.classList.remove('show');
+                });
+            }
+        });
+
+        // ドロップダウンボタンのイベントリスナー
+        document.getElementById('copyDropdownBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown('copyDropdown');
+        });
+
+        document.getElementById('downloadDropdownBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDropdown('downloadDropdown');
+        });
+
+        // ドロップダウンを閉じるヘルパー関数
+        function closeAllDropdowns() {
+            const dropdowns = document.querySelectorAll('.dropdown-content');
+            dropdowns.forEach(dropdown => dropdown.classList.remove('show'));
+        }
+
+        // Mermaidコードをコピー
+        document.getElementById('copyCodeBtn').addEventListener('click', async () => {
+            closeAllDropdowns();
+
             if (!currentMermaidCode) {
                 showToast('⚠️ コピーする図がありません', 'error');
                 return;
@@ -1393,8 +1551,36 @@
             }
         });
 
-        // ダウンロード機能
-        document.getElementById('downloadBtn').addEventListener('click', () => {
+        // 画像をクリップボードにコピー
+        document.getElementById('copyImageBtn').addEventListener('click', async () => {
+            closeAllDropdowns();
+
+            const svgElement = document.querySelector('.output-area svg');
+
+            if (!svgElement) {
+                showToast('⚠️ コピーする図がありません', 'error');
+                return;
+            }
+
+            try {
+                // SVGをPNGに変換してクリップボードにコピー
+                const blob = await svgToPngBlob(svgElement, 2);
+                await navigator.clipboard.write([
+                    new ClipboardItem({
+                        'image/png': blob
+                    })
+                ]);
+                showToast('🖼️ 画像をクリップボードにコピーしました！', 'success');
+            } catch (error) {
+                console.error('Copy image error:', error);
+                showToast('❌ 画像のコピーに失敗しました', 'error');
+            }
+        });
+
+        // SVGファイルをダウンロード
+        document.getElementById('downloadSvgBtn').addEventListener('click', () => {
+            closeAllDropdowns();
+
             const svgElement = document.querySelector('.output-area svg');
 
             if (!svgElement) {
@@ -1421,6 +1607,94 @@
                 showToast('❌ ダウンロードに失敗しました', 'error');
             }
         });
+
+        // PNGファイルをダウンロード（解像度別）
+        async function downloadPng(scale) {
+            closeAllDropdowns();
+
+            const svgElement = document.querySelector('.output-area svg');
+
+            if (!svgElement) {
+                showToast('⚠️ ダウンロードする図がありません', 'error');
+                return;
+            }
+
+            try {
+                const blob = await svgToPngBlob(svgElement, scale);
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `diagram-${scale}x-${Date.now()}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+
+                const resolution = scale === 1 ? '標準' : scale === 2 ? '高解像度' : '超高解像度';
+                showToast(`💾 PNG (${resolution}) を保存しました！`, 'success');
+            } catch (error) {
+                console.error('PNG download error:', error);
+                showToast('❌ PNGダウンロードに失敗しました', 'error');
+            }
+        }
+
+        document.getElementById('downloadPng1xBtn').addEventListener('click', () => downloadPng(1));
+        document.getElementById('downloadPng2xBtn').addEventListener('click', () => downloadPng(2));
+        document.getElementById('downloadPng3xBtn').addEventListener('click', () => downloadPng(3));
+
+        // SVGをPNG Blobに変換する関数
+        async function svgToPngBlob(svgElement, scale = 1) {
+            return new Promise((resolve, reject) => {
+                try {
+                    // SVGのサイズを取得
+                    const bbox = svgElement.getBBox();
+                    const width = bbox.width || svgElement.width.baseVal.value || 800;
+                    const height = bbox.height || svgElement.height.baseVal.value || 600;
+
+                    // SVGデータを取得
+                    const svgData = new XMLSerializer().serializeToString(svgElement);
+                    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+                    const url = URL.createObjectURL(svgBlob);
+
+                    // 画像を読み込む
+                    const img = new Image();
+                    img.onload = () => {
+                        // Canvasを作成
+                        const canvas = document.createElement('canvas');
+                        canvas.width = width * scale;
+                        canvas.height = height * scale;
+                        const ctx = canvas.getContext('2d');
+
+                        // 背景を白に設定
+                        ctx.fillStyle = 'white';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                        // SVG画像を描画
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+                        // PNGに変換
+                        canvas.toBlob((blob) => {
+                            URL.revokeObjectURL(url);
+                            if (blob) {
+                                resolve(blob);
+                            } else {
+                                reject(new Error('PNG変換に失敗しました'));
+                            }
+                        }, 'image/png');
+                    };
+
+                    img.onerror = () => {
+                        URL.revokeObjectURL(url);
+                        reject(new Error('画像の読み込みに失敗しました'));
+                    };
+
+                    img.src = url;
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
 
         // ================================================================================
         // ズーム＆フルスクリーン機能

@@ -28,12 +28,13 @@ visualize/
 
 ### ファイル詳細
 
-**index.html** (1618行)
+**index.html** (1892行)
 - 完全に自己完結型のシングルページアプリケーション
 - HTML構造、CSSスタイル、JavaScriptロジックをすべて含む
 - 外部依存: Mermaid.js CDNのみ
 - 高精度テキスト解析エンジン搭載
 - ズーム・フルスクリーン機能実装
+- 強化されたエクスポート機能（SVG/PNG、解像度選択、画像コピー）
 
 ## 🏗️ アーキテクチャと設計思想
 
@@ -280,6 +281,144 @@ function applyZoom() {
 }
 ```
 
+### 6. エクスポート機能
+
+**場所**: `index.html` の `<script>` セクション
+
+**主要関数**:
+- `svgToPngBlob(svgElement, scale)`: SVGをPNG Blobに変換
+- `downloadPng(scale)`: PNG形式でダウンロード
+- `closeAllDropdowns()`: ドロップダウンメニューを閉じる
+
+**機能一覧**:
+
+1. **コピー機能**
+   - **Mermaidコードをコピー**: 生成されたMermaid記法をクリップボードに
+   - **画像としてコピー**: PNG画像（2x解像度）をクリップボードに
+   - Clipboard API使用
+
+2. **ダウンロード機能**
+   - **SVG形式**: ベクター形式で保存（拡大しても劣化なし）
+   - **PNG (1x)**: 標準解像度
+   - **PNG (2x)**: 高解像度（Retina対応）
+   - **PNG (3x)**: 超高解像度（印刷品質）
+
+3. **ドロップダウンUI**
+   - モダンなドロップダウンメニュー
+   - ホバーエフェクト
+   - 外側クリックで自動的に閉じる
+   - アニメーション付き表示
+
+**実装詳細**:
+
+```javascript
+// SVGをPNG Blobに変換
+async function svgToPngBlob(svgElement, scale = 1) {
+    return new Promise((resolve, reject) => {
+        // SVGのサイズを取得
+        const bbox = svgElement.getBBox();
+        const width = bbox.width || svgElement.width.baseVal.value || 800;
+        const height = bbox.height || svgElement.height.baseVal.value || 600;
+
+        // SVGデータを取得
+        const svgData = new XMLSerializer().serializeToString(svgElement);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        // 画像を読み込む
+        const img = new Image();
+        img.onload = () => {
+            // Canvasを作成
+            const canvas = document.createElement('canvas');
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+            const ctx = canvas.getContext('2d');
+
+            // 背景を白に設定
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // SVG画像を描画
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+            // PNGに変換
+            canvas.toBlob((blob) => {
+                URL.revokeObjectURL(url);
+                resolve(blob);
+            }, 'image/png');
+        };
+
+        img.src = url;
+    });
+}
+
+// 画像をクリップボードにコピー
+document.getElementById('copyImageBtn').addEventListener('click', async () => {
+    const svgElement = document.querySelector('.output-area svg');
+    const blob = await svgToPngBlob(svgElement, 2);
+
+    await navigator.clipboard.write([
+        new ClipboardItem({
+            'image/png': blob
+        })
+    ]);
+    showToast('🖼️ 画像をクリップボードにコピーしました！', 'success');
+});
+```
+
+**CSS実装**:
+
+```css
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-content {
+    display: none;
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    background-color: white;
+    min-width: 220px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+    z-index: 1000;
+    margin-bottom: 8px;
+    animation: slideUp 0.2s ease-out;
+}
+
+.dropdown-item {
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+    background: linear-gradient(90deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+    color: var(--primary-color);
+}
+```
+
+**技術詳細**:
+
+- **Canvas API**: SVG→PNG変換に使用
+- **Blob API**: バイナリデータの扱い
+- **Clipboard API**: クリップボードへの書き込み
+- **XMLSerializer**: SVGをシリアライズ
+- **URL.createObjectURL**: Blob URLの生成
+- **Image.onload**: 非同期画像読み込み
+
+**ブラウザ互換性**:
+
+- Chrome/Edge: 完全対応
+- Firefox: 完全対応
+- Safari: Clipboard API一部制限あり（HTTPS必須）
+- モバイル: 基本対応
+
 ## 🎨 UIデザイン
 
 ### カラースキーム
@@ -476,6 +615,15 @@ npx serve
 
 ## 📝 変更履歴
 
+### v1.2.0 (2025-11-18)
+- 💾 強化されたエクスポート機能
+  - PNG形式ダウンロード（1x, 2x, 3x解像度選択）
+  - 画像のクリップボードコピー機能
+  - ドロップダウンメニューUI
+  - Canvas APIによるSVG→PNG変換
+  - Clipboard APIによる画像コピー
+  - 高解像度エクスポート対応（印刷品質）
+
 ### v1.1.0 (2025-11-18)
 - 🔍 ズーム・フルスクリーン機能の追加
   - ズームイン/アウトボタン（30%～300%）
@@ -490,7 +638,7 @@ npx serve
 - ✨ UI/UXの最適化
   - アニメーション強化
   - トースト通知システム
-  - コピー・ダウンロード機能
+  - 基本的なコピー・ダウンロード機能
 
 ### v1.0.0 (2025-11-17)
 - 初回リリース
@@ -545,13 +693,15 @@ npx serve
 - [x] ズーム・フルスクリーン機能
 - [x] 高精度テキスト解析エンジン
 - [x] トースト通知システム
+- [x] エクスポート機能（SVG, PNG、解像度選択、画像コピー）
 
 ### Phase 3（予定）
-- [ ] エクスポート機能（SVG, PNG）
+- [ ] リアルタイムプレビュー（入力中の自動更新）
 - [ ] 履歴機能（LocalStorage）
 - [ ] テーマ切り替え（ライト/ダーク）
 - [ ] より高度なテキスト解析（NLP/AI統合）
 - [ ] タッチジェスチャー対応（ピンチズーム）
+- [ ] テンプレート機能
 
 ### Phase 4（予定）
 - [ ] ユーザーアカウント機能
