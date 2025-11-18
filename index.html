@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="description" content="テキストを入力するだけで、わかりやすい図解を自動生成するWebアプリケーション">
     <title>Visualize - 図解アプリケーション</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
@@ -487,17 +487,187 @@
             margin-right: 8px;
         }
 
+        /* タッチフレンドリーなボタンサイズ（モバイル対応） */
         @media (max-width: 968px) {
             .content {
                 grid-template-columns: 1fr;
+                gap: 16px;
             }
 
             .header h1 {
                 font-size: 2.2rem;
             }
 
+            .header p {
+                font-size: 0.95rem;
+            }
+
             .btn-group {
                 flex-direction: column;
+            }
+
+            /* タッチフレンドリーなボタンサイズ（最小44x44px） */
+            .btn, .btn-primary, .btn-secondary, .btn-icon {
+                min-height: 44px;
+                min-width: 44px;
+                padding: 14px 24px;
+                font-size: 1rem;
+            }
+
+            .diagram-type-btn {
+                min-height: 44px;
+                padding: 12px 20px;
+                font-size: 0.95rem;
+            }
+
+            .zoom-btn {
+                min-width: 44px;
+                min-height: 44px;
+                font-size: 1.3rem;
+            }
+
+            .zoom-controls {
+                bottom: 16px;
+                right: 16px;
+                gap: 10px;
+            }
+
+            .theme-toggle-btn {
+                min-height: 44px;
+                padding: 10px 16px;
+            }
+
+            /* テキストエリアのタッチ操作改善 */
+            .input-area {
+                min-height: 250px;
+                font-size: 16px; /* iOSのズーム防止 */
+                padding: 14px;
+            }
+
+            /* 出力エリアのタッチ操作改善 */
+            .output-area {
+                min-height: 350px;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .diagram-viewport {
+                -webkit-overflow-scrolling: touch;
+                touch-action: pan-x pan-y pinch-zoom;
+            }
+
+            /* 例文リストのタッチ改善 */
+            .example-list li {
+                min-height: 44px;
+                padding: 12px 14px;
+                font-size: 0.95rem;
+            }
+
+            /* 履歴アイテムのタッチ改善 */
+            .history-item {
+                min-height: 160px;
+            }
+
+            .history-thumbnail {
+                height: 100px;
+            }
+
+            /* ドロップダウンのタッチ改善 */
+            .dropdown-item {
+                min-height: 44px;
+                padding: 14px 18px;
+                font-size: 0.95rem;
+            }
+
+            /* フルスクリーン時の調整 */
+            .output-area.fullscreen .zoom-controls {
+                bottom: 24px;
+                right: 24px;
+            }
+
+            /* ヘッダーのスペーシング調整 */
+            .theme-toggle {
+                top: 16px;
+                right: 16px;
+            }
+        }
+
+        /* タブレット用の調整 */
+        @media (max-width: 768px) and (min-width: 481px) {
+            .content {
+                gap: 20px;
+            }
+
+            .history-list {
+                grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            }
+        }
+
+        /* スマートフォン用の調整 */
+        @media (max-width: 480px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .header p {
+                font-size: 0.9rem;
+            }
+
+            .section-title {
+                font-size: 1.3rem;
+            }
+
+            .diagram-type-selector {
+                gap: 8px;
+            }
+
+            .diagram-type-btn {
+                font-size: 0.85rem;
+                padding: 10px 16px;
+            }
+
+            .history-list {
+                grid-template-columns: 1fr;
+            }
+
+            .theme-toggle-btn .label {
+                display: none; /* スペース節約 */
+            }
+
+            .theme-toggle-btn {
+                min-width: 44px;
+                padding: 12px;
+            }
+
+            /* コンテナのパディング調整 */
+            body {
+                padding: 12px;
+            }
+
+            .content {
+                padding: 16px;
+            }
+        }
+
+        /* タッチフィードバック（すべてのデバイス） */
+        @media (hover: none) and (pointer: coarse) {
+            /* タッチデバイス専用のスタイル */
+            .btn:active,
+            .diagram-type-btn:active,
+            .zoom-btn:active,
+            .example-list li:active,
+            .history-item:active {
+                opacity: 0.7;
+                transform: scale(0.98);
+            }
+
+            /* タップハイライトの色を設定 */
+            * {
+                -webkit-tap-highlight-color: rgba(102, 126, 234, 0.2);
+            }
+
+            /* スクロールのスムーズ化 */
+            * {
+                -webkit-overflow-scrolling: touch;
             }
         }
 
@@ -2300,6 +2470,12 @@
         let isDragging = false;
         let startX, startY, scrollLeft, scrollTop;
 
+        // タッチジェスチャー用変数
+        let initialPinchDistance = null;
+        let initialPinchZoom = 1.0;
+        let lastTapTime = 0;
+        let touchStartDistance = 0;
+
         // フルスクリーン機能
         document.getElementById('fullscreenBtn').addEventListener('click', () => {
             const outputArea = document.getElementById('outputArea');
@@ -2411,6 +2587,96 @@
                 const walkY = (y - startY) * 1.5;
                 viewport.scrollLeft = scrollLeft - walkX;
                 viewport.scrollTop = scrollTop - walkY;
+            });
+
+            // ================================================================================
+            // タッチジェスチャー対応
+            // ================================================================================
+
+            // 2点間の距離を計算
+            function getDistance(touch1, touch2) {
+                const dx = touch1.clientX - touch2.clientX;
+                const dy = touch1.clientY - touch2.clientY;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            // ダブルタップズーム
+            viewport.addEventListener('touchstart', (e) => {
+                const currentTime = new Date().getTime();
+                const tapInterval = currentTime - lastTapTime;
+
+                if (e.touches.length === 1) {
+                    // ダブルタップ検出（300ms以内）
+                    if (tapInterval < 300 && tapInterval > 0) {
+                        e.preventDefault();
+
+                        // ズームイン/アウトを切り替え
+                        if (currentZoom >= 2.0) {
+                            currentZoom = 1.0;
+                            showToast('🔍 リセット', 'success');
+                        } else {
+                            currentZoom = 2.0;
+                            showToast('🔍 200%', 'success');
+                        }
+                        applyZoom();
+                        lastTapTime = 0;
+                    } else {
+                        // シングルタップ - パンの準備
+                        lastTapTime = currentTime;
+                        isDragging = true;
+                        const touch = e.touches[0];
+                        startX = touch.clientX - viewport.offsetLeft;
+                        startY = touch.clientY - viewport.offsetTop;
+                        scrollLeft = viewport.scrollLeft;
+                        scrollTop = viewport.scrollTop;
+                    }
+                } else if (e.touches.length === 2) {
+                    // ピンチズームの開始
+                    e.preventDefault();
+                    isDragging = false;
+                    initialPinchDistance = getDistance(e.touches[0], e.touches[1]);
+                    initialPinchZoom = currentZoom;
+                }
+            }, { passive: false });
+
+            viewport.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    // ピンチズーム
+                    e.preventDefault();
+                    const currentDistance = getDistance(e.touches[0], e.touches[1]);
+
+                    if (initialPinchDistance > 0) {
+                        const scale = currentDistance / initialPinchDistance;
+                        let newZoom = initialPinchZoom * scale;
+
+                        // ズーム範囲を制限
+                        newZoom = Math.max(0.3, Math.min(3.0, newZoom));
+                        currentZoom = newZoom;
+                        applyZoom();
+                    }
+                } else if (e.touches.length === 1 && isDragging) {
+                    // タッチパン
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const x = touch.clientX - viewport.offsetLeft;
+                    const y = touch.clientY - viewport.offsetTop;
+                    const walkX = (x - startX) * 2;
+                    const walkY = (y - startY) * 2;
+                    viewport.scrollLeft = scrollLeft - walkX;
+                    viewport.scrollTop = scrollTop - walkY;
+                }
+            }, { passive: false });
+
+            viewport.addEventListener('touchend', (e) => {
+                if (e.touches.length === 0) {
+                    isDragging = false;
+                    initialPinchDistance = null;
+                }
+            });
+
+            viewport.addEventListener('touchcancel', () => {
+                isDragging = false;
+                initialPinchDistance = null;
             });
         }
 
