@@ -723,6 +723,162 @@ function loadFromHistory(id) {
 3. 🗑️ボタンで個別削除
 4. 「全て削除」ボタンで一括削除
 
+### 9. ダークモード
+
+**場所**: `index.html` の `<style>` と `<script>` セクション
+
+**主要関数**:
+- `getSystemThemePreference()`: システムのテーマ設定を検出
+- `initializeTheme()`: ページ読み込み時にテーマを初期化
+- `applyTheme(theme, showNotification)`: テーマを適用
+- `toggleTheme()`: ライト/ダークを切り替え
+
+**機能一覧**:
+
+1. **システム設定の自動検出**
+   - `prefers-color-scheme` メディアクエリを使用
+   - ユーザーのOS設定に自動的に対応
+   - 初回訪問時はシステム設定を優先
+
+2. **手動切り替え**
+   - ヘッダーに配置されたトグルボタン
+   - 🌙（ライトモード時）/ ☀️（ダークモード時）
+   - クリックで即座に切り替え
+   - トースト通知で確認
+
+3. **LocalStorage保存**
+   - ユーザーの設定を永続化
+   - 次回訪問時も設定を保持
+   - システム設定より優先
+
+4. **Mermaid図のテーマ連動**
+   - ライトモード: `theme: 'default'`
+   - ダークモード: `theme: 'dark'`
+   - テーマ変更時に既存の図を自動再レンダリング
+
+5. **スムーズなトランジション**
+   - 全要素に `transition: 0.3s ease` 適用
+   - 背景色、テキスト色、ボーダー色が滑らかに変化
+   - フリッカーなしのアニメーション
+
+**実装詳細**:
+
+```javascript
+// テーマ管理の定数
+const THEME_KEY = 'visualize_theme';
+let currentTheme = 'light';
+let currentMermaidTheme = 'default';
+
+// システム設定検出
+function getSystemThemePreference() {
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+    }
+    return 'light';
+}
+
+// テーマ初期化
+function initializeTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    currentTheme = savedTheme || getSystemThemePreference();
+    applyTheme(currentTheme, false);
+}
+
+// テーマ適用
+function applyTheme(theme, showNotification = true) {
+    currentTheme = theme;
+    const root = document.documentElement;
+
+    if (theme === 'dark') {
+        root.setAttribute('data-theme', 'dark');
+        currentMermaidTheme = 'dark';
+    } else {
+        root.removeAttribute('data-theme');
+        currentMermaidTheme = 'default';
+    }
+
+    localStorage.setItem(THEME_KEY, theme);
+
+    // Mermaidテーマ更新
+    mermaid.initialize({
+        theme: currentMermaidTheme,
+        // ... その他の設定
+    });
+
+    // 既存の図を再レンダリング
+    if (currentMermaidCode) {
+        visualize();
+    }
+}
+```
+
+**CSS実装**:
+
+```css
+/* ライトモードのCSS変数 */
+:root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #fafafa;
+    --text-primary: #333333;
+    --text-secondary: #666666;
+    --border-color: #dddddd;
+    /* ... その他 */
+}
+
+/* ダークモードのCSS変数 */
+[data-theme="dark"] {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --text-primary: #e4e4e7;
+    --text-secondary: #a1a1aa;
+    --border-color: #3f3f46;
+    /* ... その他 */
+}
+
+/* スムーズなトランジション */
+* {
+    transition: background-color 0.3s ease, color 0.3s ease,
+                border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* テーマ切り替えボタン */
+.theme-toggle-btn {
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(10px);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 50px;
+    /* ... */
+}
+```
+
+**技術詳細**:
+
+- **CSS Custom Properties**: テーマ間の色管理を簡素化
+- **data-theme 属性**: ルート要素に適用してテーマを制御
+- **prefers-color-scheme**: システム設定の検出
+- **matchMedia API**: メディアクエリの監視
+- **backdrop-filter**: ボタンの半透明ブラー効果
+- **localStorage**: テーマ設定の永続化
+- **動的Mermaid再初期化**: テーマ変更時の図の更新
+
+**ブラウザ互換性**:
+
+| 機能 | Chrome/Edge | Firefox | Safari |
+|------|-------------|---------|--------|
+| CSS Custom Properties | ✅ | ✅ | ✅ |
+| prefers-color-scheme | ✅ | ✅ | ✅ |
+| backdrop-filter | ✅ | ✅ | ✅ (13.1+) |
+| localStorage | ✅ | ✅ | ✅ |
+
+**ユーザーガイド**:
+
+1. 初回訪問時はシステム設定を自動検出
+2. ヘッダー右上のボタンでいつでも切り替え可能
+3. 設定は自動保存され、次回訪問時も保持
+4. システム設定変更時、手動設定がなければ自動追従
+
 ## 🎨 UIデザイン
 
 ### カラースキーム
@@ -919,6 +1075,17 @@ npx serve
 
 ## 📝 変更履歴
 
+### v1.5.0 (2025-11-18)
+- 🌙 ダークモード機能
+  - システム設定の自動検出（prefers-color-scheme）
+  - 手動切り替えボタン（ヘッダー右上）
+  - LocalStorageで設定永続化
+  - Mermaid図のテーマ連動（default/dark）
+  - CSS変数による色管理（15色×2テーマ）
+  - スムーズなトランジションアニメーション（0.3s）
+  - システム設定変更の自動追従
+  - 背景ブラー効果のトグルボタン
+
 ### v1.4.0 (2025-11-18)
 - 📜 履歴機能（LocalStorage）
   - 自動保存機能（最大10件）
@@ -1013,19 +1180,20 @@ npx serve
 
 ## 🎯 今後の開発ロードマップ
 
-### 📊 現在の完成度評価（v1.4.0時点）
+### 📊 現在の完成度評価（v1.5.0時点）
 
 ```
 基本機能:     ████████████████████░ 100% 完成
 エクスポート:  ████████████████████░ 100% 完成
-UX/UI:        ██████████████████░░░ 90% 完成
+UX/UI:        ████████████████████░ 100% 完成（ダークモード追加）
 データ管理:   ████████████████████░ 100% 完成（履歴機能）
+アクセシビリティ: ████████████████░░░░ 85% 完成（テーマ対応）
 モバイル対応:  ███████████░░░░░░░░░ 60% 完成
-全体完成度:    ██████████████████░░░ 90% 完成
+全体完成度:    ███████████████████░░ 95% 完成
 ```
 
 **MVP（Minimum Viable Product）として十分な品質に到達しています。**
-**履歴機能の追加により、プロダクション利用に適した状態になりました。**
+**ダークモード機能の追加により、現代的なWebアプリケーションとして完成度が大幅に向上しました。**
 
 ### Phase 2（実装済み） ✅
 - [x] ズーム・フルスクリーン機能
@@ -1034,24 +1202,13 @@ UX/UI:        ██████████████████░░░ 90
 - [x] エクスポート機能（SVG, PNG、解像度選択、画像コピー）
 - [x] リアルタイムプレビュー機能（500msデバウンス）
 - [x] 履歴機能（LocalStorage、最大10件、サムネイル付き）
+- [x] ダークモード（システム設定検出、Mermaid連動）
 
 ### Phase 3（予定）- 優先度別実装計画
 
 #### 🟡 優先度A（高）- 重要だが時間がかかる
 
-**3. ダークモード** 🌙
-- **所要時間**: 3-4時間
-- **実装難易度**: ⭐⭐☆☆☆（中）
-- **ユーザー価値**: ⭐⭐⭐⭐☆（高）
-- **理由**: 現代のWebアプリの標準機能、目の疲労軽減
-- **実装内容**:
-  - システム設定の自動検出（prefers-color-scheme）
-  - 手動切り替えボタン
-  - LocalStorageで設定保存
-  - Mermaid図のテーマ連動
-  - CSS変数による色管理
-
-**4. モバイル最適化（タッチジェスチャー）** 📱
+**1. モバイル最適化（タッチジェスチャー）** 📱
 - **所要時間**: 3-4時間
 - **実装難易度**: ⭐⭐☆☆☆（中）
 - **ユーザー価値**: ⭐⭐⭐⭐☆（高）
@@ -1099,22 +1256,22 @@ UX/UI:        ██████████████████░░░ 90
 
 ### 📍 次の推奨実装機能
 
-**最優先**: **ダークモード** 🌙
+**最優先**: **モバイル最適化（タッチジェスチャー）** 📱
 
 **理由**:
-1. 現代のWebアプリの標準機能として期待されている
-2. 目の疲労軽減で長時間利用時の快適性向上
-3. 実装時間が適度（3-4時間）
-4. システム設定との連動で自動切り替え可能
-5. ユーザー体験の大幅な向上
+1. スマートフォンユーザーの操作性が現状不十分
+2. タッチデバイスでの図の操作が困難
+3. モバイルトラフィックの増加に対応
+4. 実装時間が適度（3-4時間）
+5. ユーザーベースの拡大が期待できる
 
 **実装予定内容**:
-- システム設定の自動検出（prefers-color-scheme）
-- 手動切り替えボタン（🌙/☀️トグル）
-- LocalStorageで設定保存
-- Mermaid図のテーマ連動
-- CSS変数による色管理
-- スムーズな切り替えアニメーション
+- ピンチズーム対応（Touch Events API）
+- スワイプでパン機能
+- タッチフレンドリーなボタンサイズ（最低44x44px）
+- モバイル専用UI調整
+- ダブルタップズーム
+- タッチフィードバックの改善
 
 ---
 

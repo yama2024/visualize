@@ -14,15 +14,51 @@
         }
 
         :root {
+            /* グラデーションとプライマリカラー */
             --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             --primary-color: #667eea;
             --secondary-color: #764ba2;
             --success-color: #10b981;
             --error-color: #ef4444;
-            --text-dark: #333;
-            --text-light: #666;
-            --border-color: #ddd;
-            --bg-light: #fafafa;
+
+            /* ライトモードカラー */
+            --bg-primary: #ffffff;
+            --bg-secondary: #fafafa;
+            --bg-tertiary: #f8f9fa;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --text-tertiary: #999999;
+            --border-color: #dddddd;
+            --border-light: #e9ecef;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --shadow-hover: rgba(0, 0, 0, 0.15);
+            --card-bg: rgba(255, 255, 255, 0.98);
+            --input-bg: #ffffff;
+            --placeholder-color: #aaaaaa;
+            --overlay-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        [data-theme="dark"] {
+            /* ダークモードカラー */
+            --bg-primary: #1a1a2e;
+            --bg-secondary: #16213e;
+            --bg-tertiary: #0f1419;
+            --text-primary: #e4e4e7;
+            --text-secondary: #a1a1aa;
+            --text-tertiary: #71717a;
+            --border-color: #3f3f46;
+            --border-light: #2a2a2e;
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --shadow-hover: rgba(0, 0, 0, 0.5);
+            --card-bg: rgba(26, 26, 46, 0.98);
+            --input-bg: #27272a;
+            --placeholder-color: #71717a;
+            --overlay-bg: rgba(26, 26, 46, 0.95);
+        }
+
+        /* テーマ切り替えのスムーズなトランジション */
+        * {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         body {
@@ -36,9 +72,9 @@
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            background: rgba(255, 255, 255, 0.98);
+            background: var(--card-bg);
             border-radius: 24px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 20px 60px var(--shadow-color);
             overflow: hidden;
             animation: fadeInUp 0.6s ease-out;
         }
@@ -125,7 +161,7 @@
 
         .section-title {
             font-size: 1.5rem;
-            color: var(--text-dark);
+            color: var(--text-primary);
             margin-bottom: 18px;
             font-weight: 700;
             display: flex;
@@ -143,7 +179,8 @@
             font-family: inherit;
             resize: vertical;
             transition: all 0.3s ease;
-            background: white;
+            background: var(--input-bg);
+            color: var(--text-primary);
             line-height: 1.6;
         }
 
@@ -155,7 +192,7 @@
         }
 
         .input-area::placeholder {
-            color: #999;
+            color: var(--placeholder-color);
         }
 
         .button-group {
@@ -215,20 +252,20 @@
         }
 
         .btn-secondary {
-            background: #f5f5f5;
-            color: var(--text-dark);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
         }
 
         .btn-secondary:hover {
-            background: #e8e8e8;
+            background: var(--bg-tertiary);
             transform: translateY(-2px);
         }
 
         .btn-icon {
             padding: 13px 20px;
-            background: white;
+            background: var(--bg-primary);
             border: 2px solid var(--border-color);
-            color: var(--text-dark);
+            color: var(--text-primary);
         }
 
         .btn-icon:hover {
@@ -248,7 +285,8 @@
             padding: 10px 18px;
             border: 2px solid var(--border-color);
             border-radius: 8px;
-            background: white;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.3s ease;
             font-size: 0.9rem;
@@ -274,14 +312,14 @@
             border: 2px solid var(--border-color);
             border-radius: 12px;
             padding: 24px;
-            background: var(--bg-light);
+            background: var(--bg-secondary);
             overflow: hidden;
             position: relative;
             transition: all 0.3s ease;
         }
 
         .output-area.has-content {
-            background: white;
+            background: var(--bg-primary);
             border-color: var(--primary-color);
         }
 
@@ -342,15 +380,15 @@
             height: 40px;
             border: none;
             border-radius: 8px;
-            background: white;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            background: var(--bg-primary);
+            box-shadow: 0 2px 8px var(--shadow-color);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.2rem;
             transition: all 0.2s ease;
-            color: var(--text-dark);
+            color: var(--text-primary);
         }
 
         .zoom-btn:hover {
@@ -361,14 +399,14 @@
         }
 
         .zoom-level {
-            background: white;
+            background: var(--bg-primary);
             padding: 6px 12px;
             border-radius: 6px;
             font-size: 0.85rem;
             font-weight: 600;
             text-align: center;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-            color: var(--text-dark);
+            box-shadow: 0 2px 8px var(--shadow-color);
+            color: var(--text-primary);
         }
 
         .output-actions {
@@ -391,7 +429,7 @@
             align-items: center;
             justify-content: center;
             height: 100%;
-            color: #999;
+            color: var(--text-tertiary);
             font-size: 1.1rem;
             text-align: center;
             gap: 12px;
@@ -403,17 +441,17 @@
         }
 
         .example-section {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
             padding: 22px;
             margin-top: 24px;
             border-radius: 12px;
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-light);
         }
 
         .example-title {
             font-weight: 700;
             margin-bottom: 14px;
-            color: var(--text-dark);
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -426,12 +464,12 @@
 
         .example-list li {
             padding: 10px 12px;
-            color: var(--text-light);
+            color: var(--text-secondary);
             cursor: pointer;
             transition: all 0.3s ease;
             border-radius: 8px;
             margin-bottom: 6px;
-            background: white;
+            background: var(--bg-primary);
             border: 1px solid transparent;
         }
 
@@ -603,9 +641,9 @@
             position: absolute;
             bottom: 100%;
             left: 0;
-            background-color: white;
+            background-color: var(--bg-primary);
             min-width: 220px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            box-shadow: 0 8px 24px var(--shadow-hover);
             border-radius: 12px;
             z-index: 1000;
             margin-bottom: 8px;
@@ -635,12 +673,12 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            color: var(--text-dark);
+            color: var(--text-primary);
             cursor: pointer;
             transition: all 0.2s ease;
             font-size: 0.9rem;
             border: none;
-            background: white;
+            background: var(--bg-primary);
             width: 100%;
             text-align: left;
         }
@@ -660,7 +698,7 @@
             padding: 8px 16px;
             font-size: 0.75rem;
             font-weight: 600;
-            color: var(--text-light);
+            color: var(--text-secondary);
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -696,7 +734,7 @@
 
         .toggle-label {
             font-size: 0.9rem;
-            color: var(--text-dark);
+            color: var(--text-primary);
             font-weight: 500;
             flex: 1;
             display: flex;
@@ -751,17 +789,17 @@
 
         .toggle-hint {
             font-size: 0.75rem;
-            color: var(--text-light);
+            color: var(--text-secondary);
             margin-top: 4px;
         }
 
         /* 履歴パネル */
         .history-panel {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
             padding: 20px;
             border-radius: 12px;
             margin-top: 20px;
-            border: 1px solid #dee2e6;
+            border: 1px solid var(--border-light);
         }
 
         .history-header {
@@ -773,7 +811,7 @@
 
         .history-title {
             font-weight: 700;
-            color: var(--text-dark);
+            color: var(--text-primary);
             display: flex;
             align-items: center;
             gap: 8px;
@@ -782,7 +820,7 @@
 
         .history-clear-btn {
             padding: 6px 12px;
-            background: white;
+            background: var(--bg-primary);
             border: 1px solid #dc3545;
             color: #dc3545;
             border-radius: 6px;
@@ -805,7 +843,7 @@
         }
 
         .history-item {
-            background: white;
+            background: var(--bg-primary);
             border: 2px solid var(--border-color);
             border-radius: 10px;
             padding: 10px;
@@ -823,14 +861,14 @@
         .history-thumbnail {
             width: 100%;
             height: 120px;
-            background: #f8f9fa;
+            background: var(--bg-secondary);
             border-radius: 6px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin-bottom: 8px;
             overflow: hidden;
-            border: 1px solid #e9ecef;
+            border: 1px solid var(--border-light);
         }
 
         .history-thumbnail svg {
@@ -840,7 +878,7 @@
 
         .history-info {
             font-size: 0.75rem;
-            color: var(--text-light);
+            color: var(--text-secondary);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -872,14 +910,63 @@
         .history-empty {
             text-align: center;
             padding: 40px 20px;
-            color: var(--text-light);
+            color: var(--text-secondary);
             font-size: 0.9rem;
+        }
+
+        /* テーマ切り替えボタン */
+        .theme-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+
+        .theme-toggle-btn {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .theme-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+        }
+
+        .theme-toggle-btn .icon {
+            font-size: 1.3rem;
+            line-height: 1;
+        }
+
+        .theme-toggle-btn .label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            <div class="theme-toggle">
+                <button class="theme-toggle-btn" id="themeToggle" aria-label="テーマ切り替え">
+                    <span class="icon" id="themeIcon">🌙</span>
+                    <span class="label" id="themeLabel">ダーク</span>
+                </button>
+            </div>
             <h1>📊 Visualize</h1>
             <p>テキストを入力するだけで、わかりやすい図解を自動生成</p>
         </div>
@@ -1037,7 +1124,94 @@
     <div class="toast" id="toast"></div>
 
     <script>
-        // Mermaid初期化
+        // ================================================================================
+        // テーマ管理
+        // ================================================================================
+
+        const THEME_KEY = 'visualize_theme';
+        let currentTheme = 'light';
+        let currentMermaidTheme = 'default';
+
+        // システム設定からダークモードの優先を検出
+        function getSystemThemePreference() {
+            if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                return 'dark';
+            }
+            return 'light';
+        }
+
+        // テーマを初期化
+        function initializeTheme() {
+            // LocalStorageから読み込み、なければシステム設定を使用
+            const savedTheme = localStorage.getItem(THEME_KEY);
+            currentTheme = savedTheme || getSystemThemePreference();
+            applyTheme(currentTheme, false);
+        }
+
+        // テーマを適用
+        function applyTheme(theme, showNotification = true) {
+            currentTheme = theme;
+            const root = document.documentElement;
+            const themeIcon = document.getElementById('themeIcon');
+            const themeLabel = document.getElementById('themeLabel');
+
+            if (theme === 'dark') {
+                root.setAttribute('data-theme', 'dark');
+                themeIcon.textContent = '☀️';
+                themeLabel.textContent = 'ライト';
+                currentMermaidTheme = 'dark';
+                if (showNotification) {
+                    showToast('🌙 ダークモードに切り替えました', 'success');
+                }
+            } else {
+                root.removeAttribute('data-theme');
+                themeIcon.textContent = '🌙';
+                themeLabel.textContent = 'ダーク';
+                currentMermaidTheme = 'default';
+                if (showNotification) {
+                    showToast('☀️ ライトモードに切り替えました', 'success');
+                }
+            }
+
+            // LocalStorageに保存
+            localStorage.setItem(THEME_KEY, theme);
+
+            // Mermaidテーマを更新
+            mermaid.initialize({
+                startOnLoad: false,
+                theme: currentMermaidTheme,
+                securityLevel: 'loose',
+                flowchart: {
+                    useMaxWidth: true,
+                    htmlLabels: true,
+                    curve: 'basis'
+                }
+            });
+
+            // 既存の図がある場合は再レンダリング
+            if (currentMermaidCode) {
+                visualize();
+            }
+        }
+
+        // テーマ切り替え
+        function toggleTheme() {
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(newTheme);
+        }
+
+        // システム設定の変更を監視
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+                // ユーザーが手動で設定していない場合のみ、システム設定に従う
+                if (!localStorage.getItem(THEME_KEY)) {
+                    const newTheme = e.matches ? 'dark' : 'light';
+                    applyTheme(newTheme, false);
+                }
+            });
+        }
+
+        // Mermaid初期化（テーマは動的に変更されるため、ここでは基本設定のみ）
         mermaid.initialize({
             startOnLoad: false,
             theme: 'default',
@@ -2257,6 +2431,12 @@
         // ================================================================================
         // イベントリスナー
         // ================================================================================
+
+        // テーマ切り替えボタン
+        document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+        // ページ読み込み時にテーマを初期化
+        initializeTheme();
 
         // リアルタイムプレビュートグル
         const autoUpdateToggle = document.getElementById('autoUpdateToggle');
