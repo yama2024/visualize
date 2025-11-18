@@ -675,6 +675,85 @@
             color: white;
             margin-left: 8px;
         }
+
+        /* トグルスイッチ */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+            border-radius: 10px;
+            margin-bottom: 16px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-container.active {
+            border-color: var(--primary-color);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+        }
+
+        .toggle-label {
+            font-size: 0.9rem;
+            color: var(--text-dark);
+            font-weight: 500;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 26px;
+        }
+
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary-gradient);
+        }
+
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(24px);
+        }
+
+        .toggle-hint {
+            font-size: 0.75rem;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
     </style>
 </head>
 <body>
@@ -715,6 +794,20 @@
                     placeholder="図解したい内容を自由に入力してください...&#10;&#10;例:&#10;・プロジェクトの進め方を説明&#10;・システムの処理フローを記述&#10;・タスクの関係性を列挙&#10;・データの内訳を数値で入力"
                     aria-label="図解するテキストを入力"
                 ></textarea>
+
+                <!-- リアルタイムプレビュートグル -->
+                <div class="toggle-container" id="autoUpdateContainer">
+                    <div class="toggle-label">
+                        <span>⚡ リアルタイムプレビュー</span>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="autoUpdateToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-hint" style="margin-top: -12px; margin-bottom: 16px; margin-left: 16px;">
+                    入力しながら自動的に図を更新します（500ms後）
+                </div>
 
                 <div class="button-group">
                     <button class="btn btn-primary" id="visualizeBtn">
@@ -1420,6 +1513,27 @@
                 .substring(0, 50);
         }
 
+        // ================================================================================
+        // リアルタイムプレビュー機能
+        // ================================================================================
+
+        // Debounce関数（指定時間内の連続呼び出しを制御）
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // リアルタイムプレビュー用のフラグ
+        let isAutoUpdateEnabled = false;
+        let isUpdating = false;
+
         // 図解実行
         async function visualize() {
             const input = document.getElementById('userInput').value.trim();
@@ -1433,11 +1547,18 @@
             }
 
             try {
-                outputArea.innerHTML = '<div class="loading-overlay"><div class="loading-spinner"></div></div>';
+                // リアルタイムプレビュー時はローディングを短縮
+                if (isAutoUpdateEnabled && isUpdating) {
+                    outputArea.innerHTML = '<div class="loading-overlay" style="opacity: 0.7;"><div class="loading-spinner" style="width: 30px; height: 30px;"></div></div>';
+                } else {
+                    outputArea.innerHTML = '<div class="loading-overlay"><div class="loading-spinner"></div></div>';
+                }
                 outputActions.classList.remove('show');
 
-                // 少し遅延を入れてアニメーションを見せる
-                await new Promise(resolve => setTimeout(resolve, 300));
+                // リアルタイムプレビュー時は遅延なし、手動実行時のみアニメーション
+                if (!isAutoUpdateEnabled || !isUpdating) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
 
                 const mermaidCode = textToMermaid(input, currentDiagramType);
                 currentMermaidCode = mermaidCode;
@@ -1832,7 +1953,52 @@
             }
         }
 
+        // ================================================================================
         // イベントリスナー
+        // ================================================================================
+
+        // リアルタイムプレビュートグル
+        const autoUpdateToggle = document.getElementById('autoUpdateToggle');
+        const autoUpdateContainer = document.getElementById('autoUpdateContainer');
+        const userInput = document.getElementById('userInput');
+
+        autoUpdateToggle.addEventListener('change', function() {
+            isAutoUpdateEnabled = this.checked;
+
+            if (isAutoUpdateEnabled) {
+                autoUpdateContainer.classList.add('active');
+                showToast('⚡ リアルタイムプレビュー ON', 'success');
+            } else {
+                autoUpdateContainer.classList.remove('active');
+                showToast('⚡ リアルタイムプレビュー OFF', 'success');
+            }
+        });
+
+        // デバウンス付きのvisualizeラッパー関数
+        const debouncedVisualize = debounce(async () => {
+            if (!isAutoUpdateEnabled || isUpdating) return;
+
+            const input = userInput.value.trim();
+            if (!input) return;
+
+            isUpdating = true;
+            try {
+                await visualize();
+            } catch (error) {
+                console.error('Auto-update error:', error);
+            } finally {
+                isUpdating = false;
+            }
+        }, 500);
+
+        // 入力イベントでリアルタイムプレビュー
+        userInput.addEventListener('input', () => {
+            if (isAutoUpdateEnabled) {
+                debouncedVisualize();
+            }
+        });
+
+        // 手動実行ボタン
         document.getElementById('visualizeBtn').addEventListener('click', visualize);
 
         document.getElementById('clearBtn').addEventListener('click', () => {
