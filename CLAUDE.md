@@ -544,6 +544,185 @@ userInput.addEventListener('input', () => {
 3. 500ms後に自動更新
 4. 必要に応じてトグルOFF
 
+### 8. 履歴機能（LocalStorage）
+
+**場所**: `index.html` の `<script>` セクション
+
+**主要関数**:
+- `loadHistory()`: LocalStorageから履歴を読み込み
+- `saveToHistory(inputText, mermaidCode, diagramType, svgContent)`: 新しい履歴アイテムを保存
+- `renderHistory()`: 履歴をUIに表示
+- `loadFromHistory(id)`: 履歴アイテムから図を復元
+- `deleteHistoryItem(id)`: 個別の履歴アイテムを削除
+- `clearAllHistory()`: すべての履歴を削除
+
+**機能一覧**:
+
+1. **自動保存**
+   - 図の生成成功時に自動的に履歴に保存
+   - 最大10件まで保存（古いものから自動削除）
+   - LocalStorageによる永続化
+
+2. **履歴表示**
+   - サムネイル付きのグリッドレイアウト
+   - タイムスタンプ表示（月/日 時:分）
+   - 履歴件数バッジ表示
+   - 空の状態のメッセージ
+
+3. **復元機能**
+   - クリックで入力テキストを復元
+   - 図タイプも自動復元
+   - 図を自動再生成
+   - トースト通知で確認
+
+4. **削除機能**
+   - 個別削除ボタン（🗑️）
+   - 全削除ボタン（確認ダイアログ付き）
+   - トースト通知で確認
+
+**実装詳細**:
+
+```javascript
+// 定数定義
+const HISTORY_KEY = 'visualize_history';
+const MAX_HISTORY = 10;
+
+// データ構造
+const historyItem = {
+    id: Date.now(),                    // ユニークID（タイムスタンプ）
+    timestamp: new Date().toISOString(), // ISO形式のタイムスタンプ
+    inputText: input,                   // ユーザー入力テキスト
+    mermaidCode: mermaidCode,          // 生成されたMermaidコード
+    diagramType: diagramType,          // 図タイプ
+    svgContent: svgContent             // SVG要素のHTML
+};
+
+// LocalStorageから読み込み
+function loadHistory() {
+    try {
+        const historyData = localStorage.getItem(HISTORY_KEY);
+        return historyData ? JSON.parse(historyData) : [];
+    } catch (error) {
+        console.error('Failed to load history:', error);
+        return [];
+    }
+}
+
+// 履歴に保存（自動的に古いアイテムを削除）
+function saveToHistory(inputText, mermaidCode, diagramType, svgContent) {
+    try {
+        let history = loadHistory();
+        const historyItem = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            inputText: inputText,
+            mermaidCode: mermaidCode,
+            diagramType: diagramType,
+            svgContent: svgContent
+        };
+        history.unshift(historyItem); // 先頭に追加
+        if (history.length > MAX_HISTORY) {
+            history = history.slice(0, MAX_HISTORY); // 10件に制限
+        }
+        localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+        renderHistory();
+    } catch (error) {
+        console.error('Failed to save history:', error);
+    }
+}
+
+// 履歴アイテムから復元
+function loadFromHistory(id) {
+    const history = loadHistory();
+    const item = history.find(h => h.id === id);
+    if (item) {
+        document.getElementById('userInput').value = item.inputText;
+        currentDiagramType = item.diagramType;
+        // 図タイプボタンを更新
+        document.querySelectorAll('.diagram-type-btn').forEach(btn => {
+            btn.classList.remove('active');
+            if (btn.dataset.type === item.diagramType) {
+                btn.classList.add('active');
+            }
+        });
+        visualize();
+        showToast('📚 履歴から復元しました', 'success');
+    }
+}
+```
+
+**CSS実装**:
+
+```css
+.history-panel {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+    border: 1px solid #dee2e6;
+}
+
+.history-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.history-item {
+    background: white;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.history-item:hover {
+    border-color: var(--primary-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+}
+
+.history-thumbnail {
+    width: 100%;
+    height: 120px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+```
+
+**技術詳細**:
+
+- **LocalStorage API**: ブラウザ内永続ストレージ
+- **JSON.stringify/parse**: データのシリアライズ/デシリアライズ
+- **Array.unshift**: 配列の先頭に追加
+- **Array.slice**: 配列の一部を取得（最大件数制限）
+- **Array.find**: 条件に合う要素を検索
+- **Date.now()**: ユニークID生成
+- **ISO 8601**: タイムスタンプ形式
+
+**ストレージ容量**:
+
+| 項目 | 詳細 |
+|------|------|
+| 最大保存件数 | 10件 |
+| 1件あたりの平均サイズ | ~5-10KB |
+| 合計サイズ | ~50-100KB |
+| LocalStorage制限 | ~5-10MB（ブラウザ依存） |
+
+**ユーザーガイド**:
+
+1. 図を生成すると自動的に履歴に保存
+2. 履歴パネルでサムネイルをクリックして復元
+3. 🗑️ボタンで個別削除
+4. 「全て削除」ボタンで一括削除
+
 ## 🎨 UIデザイン
 
 ### カラースキーム
@@ -740,6 +919,17 @@ npx serve
 
 ## 📝 変更履歴
 
+### v1.4.0 (2025-11-18)
+- 📜 履歴機能（LocalStorage）
+  - 自動保存機能（最大10件）
+  - サムネイル付きグリッドレイアウト
+  - タイムスタンプ表示（月/日 時:分）
+  - クリックで復元機能
+  - 個別削除・一括削除機能
+  - LocalStorageによる永続化
+  - 空の状態のメッセージ表示
+  - トースト通知による操作フィードバック
+
 ### v1.3.0 (2025-11-18)
 - ⚡ リアルタイムプレビュー機能
   - 500msデバウンス処理
@@ -823,17 +1013,19 @@ npx serve
 
 ## 🎯 今後の開発ロードマップ
 
-### 📊 現在の完成度評価（v1.2.0時点）
+### 📊 現在の完成度評価（v1.4.0時点）
 
 ```
-基本機能:     ████████████████████░ 95% 完成
+基本機能:     ████████████████████░ 100% 完成
 エクスポート:  ████████████████████░ 100% 完成
-UX/UI:        ████████████████░░░░░ 85% 完成
+UX/UI:        ██████████████████░░░ 90% 完成
+データ管理:   ████████████████████░ 100% 完成（履歴機能）
 モバイル対応:  ███████████░░░░░░░░░ 60% 完成
-全体完成度:    ████████████████░░░░ 85% 完成
+全体完成度:    ██████████████████░░░ 90% 完成
 ```
 
 **MVP（Minimum Viable Product）として十分な品質に到達しています。**
+**履歴機能の追加により、プロダクション利用に適した状態になりました。**
 
 ### Phase 2（実装済み） ✅
 - [x] ズーム・フルスクリーン機能
@@ -841,24 +1033,11 @@ UX/UI:        ████████████████░░░░░ 85
 - [x] トースト通知システム
 - [x] エクスポート機能（SVG, PNG、解像度選択、画像コピー）
 - [x] リアルタイムプレビュー機能（500msデバウンス）
+- [x] 履歴機能（LocalStorage、最大10件、サムネイル付き）
 
 ### Phase 3（予定）- 優先度別実装計画
 
-#### 🔴 優先度A（最高）- 即座に実装すべき
-
-**1. 履歴機能（LocalStorage）** 📜
-- **所要時間**: 4-5時間
-- **実装難易度**: ⭐⭐☆☆☆（中）
-- **ユーザー価値**: ⭐⭐⭐⭐⭐（最高）
-- **理由**: 過去の図を再利用できると利便性が大幅向上
-- **実装内容**:
-  - 最新10件の自動保存
-  - サムネイル表示（SVGプレビュー）
-  - クリックで再読み込み
-  - 削除・クリア機能
-  - タイムスタンプ付き
-
-#### 🟡 優先度B（高）- 重要だが時間がかかる
+#### 🟡 優先度A（高）- 重要だが時間がかかる
 
 **3. ダークモード** 🌙
 - **所要時間**: 3-4時間
@@ -920,20 +1099,22 @@ UX/UI:        ████████████████░░░░░ 85
 
 ### 📍 次の推奨実装機能
 
-**最優先**: **履歴機能（LocalStorage）** 📜
+**最優先**: **ダークモード** 🌙
 
 **理由**:
-1. ユーザー価値が非常に高い（過去の図を再利用）
-2. 実装時間が適度（4-5時間）
-3. データ永続化により利便性大幅向上
-4. リアルタイムプレビューとの相乗効果
+1. 現代のWebアプリの標準機能として期待されている
+2. 目の疲労軽減で長時間利用時の快適性向上
+3. 実装時間が適度（3-4時間）
+4. システム設定との連動で自動切り替え可能
+5. ユーザー体験の大幅な向上
 
-**実装後の効果**:
-- 過去10件の図を自動保存
-- サムネイル付きで視覚的に確認
-- クリックで即座に再読み込み
-- 削除・クリア機能で管理簡単
-- 作業効率が大幅に向上
+**実装予定内容**:
+- システム設定の自動検出（prefers-color-scheme）
+- 手動切り替えボタン（🌙/☀️トグル）
+- LocalStorageで設定保存
+- Mermaid図のテーマ連動
+- CSS変数による色管理
+- スムーズな切り替えアニメーション
 
 ---
 
